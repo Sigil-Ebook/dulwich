@@ -15,72 +15,63 @@
 import sys
 import os
 
-from difflib import ndiff
+from difflib import diff_bytes, ndiff
 
-# from collections import namedtuple
-# from mdiff import myers_diff, Keep, Insert, Remove
 
-    
+def do_file_merge(alice, bob, ancestor):
+    mrg3 = Merge3Way(ancestor, alice, bob)
+    res = mrg3.merge()
+    conflicts = mrg3.get_conflicts()
+    return res
+
+
 class Merge3Way(object):
 
-    def __init__(self, ancestor_path, alice_path, bob_path, use_myers):
-        self.o_file = ancestor_path
-        self.a_file = alice_path
-        self.b_file = bob_path
-        self.o_lines = []
-        self.a_lines = []
-        self.b_lines = []
-        # Note: keep lineends if passed text by using splitlines(keepends=True)
-        try:
-            with open(self.o_file) as of:
-                self.o_lines = of.readlines()
-            with open(self.a_file) as af:
-                self.a_lines = af.readlines()
-            with open(self.b_file) as bf:
-                self.b_lines = bf.readlines()
-        except:
-            self.o_lines, self.a_lines, self.b_lines = [''], [''], ['']
-
-        if use_myers:
-            self.a_matches = self.myers_matches(self.o_lines, self.a_lines)
-            self.b_matches = self.myers_matches(self.o_lines, self.b_lines)
-        else:
-            self.a_matches = self.ndiff_matches(self.o_lines, self.a_lines)
-            self.b_matches = self.ndiff_matches(self.o_lines, self.b_lines)
+    def __init__(self, ancestor, alice, bob):
+        self.o_file = b'ancestor'
+        self.a_file = b'alice'
+        self.b_file = b'bob'
+        self.o_lines = ancestor.splitlines(keepends=True)
+        self.a_lines = alice.splitlines(keepends=True)
+        self.b_lines = bob.splitlines(keepends=True)
+        self.conflicts = []
+        self.a_matches = self.ndiff_matches(self.o_lines, self.a_lines)
+        self.b_matches = self.ndiff_matches(self.o_lines, self.b_lines)
 
         self.chunks = []
         self.on, self.an, self.bn = 0, 0, 0
 
+
+    def get_conflicts(self):
+        return self.conflicts
+
+
+    # ancestor line number to alice/bob line numbers for matching lines
     def ndiff_matches(self, olines, dlines):
-        # ancestor line number to alice/bob line numbers for matching lines
         on, dn = 0, 0
         matches = {}
-        for line in ndiff(olines, dlines, linejunk=None, charjunk=None):
+
+        # See difflib.diff_bytes documentation
+        # https://docs.python.org/3/library/difflib.html
+        # Use this to allow ndiff to work on mixed or unknown encoded
+        # byte strings
+        def do_ndiff(alines, blines, fromfile, tofile, fromfiledate, 
+                     tofiledate, n, lineterm):
+            return ndiff(alines, blines, linejunk=None, charjunk=None)
+
+        for line in diff_bytes(do_ndiff, olines, dlines, b'ancestor', b'other',
+                               b' ', b' ', n=-1, lineterm=b'\n'):
             dt = line[0:2]
-            if dt == '  ':
+            if dt == b'  ':
                 on += 1
                 dn += 1
                 matches[on] = dn
-            elif dt == '+ ':
+            elif dt == b'+ ':
                 dn += 1
-            elif dt == '- ':
+            elif dt == b'- ':
                 on += 1
         return matches
 
-    def myers_matches(self, olines, dlines):
-        # ancestor line number to alice/bob line numbers for matching lines
-        on, dn = 0, 0
-        matches = {}
-        for elem in myers_diff(olines, dlines):
-            if isinstance(elem, Keep):
-                on += 1
-                dn += 1
-                matches[on] = dn
-            elif isinstance(elem, Insert):
-                dn += 1
-            else:
-                on += 1
-        return matches
 
     def generate_chunks(self):
         while(True):
@@ -98,16 +89,19 @@ class Merge3Way(object):
             elif i:
                 self.emit_chunk(self.on + i, self.an + i, self.bn + i)
 
+
     def inbounds(self, i):
         if (self.on + i) <= len(self.o_lines): return True
         if (self.an + i) <= len(self.a_lines): return True
         if (self.bn + i) <= len(self.b_lines): return True
         return False
 
+
     def ismatch(self, matchdict, offset, i):
         if (self.on + i) in matchdict:
             return matchdict[self.on + i] == offset + i
         return False
+
 
     def find_next_mismatch(self):
         i = 1
@@ -117,6 +111,7 @@ class Merge3Way(object):
             i += 1
         if self.inbounds(i): return i
         return None
+
 
     def find_next_match(self):
         ov = self.on + 1
@@ -131,10 +126,11 @@ class Merge3Way(object):
             bv = self.b_matches[ov]
         return (ov, av, bv)
 
+
     def write_chunk(self, o_range, a_range, b_range):
-        oc = ''.join(self.o_lines[o_range[0]:o_range[1]])
-        ac = ''.join(self.a_lines[a_range[0]:a_range[1]])
-        bc = ''.join(self.b_lines[b_range[0]:b_range[1]])
+        oc = b''.join(self.o_lines[o_range[0]:o_range[1]])
+        ac = b''.join(self.a_lines[a_range[0]:a_range[1]])
+        bc = b''.join(self.b_lines[b_range[0]:b_range[1]])
         if oc == ac and oc == bc:
             self.chunks.append(oc)
         elif oc == ac:
@@ -143,12 +139,14 @@ class Merge3Way(object):
             self.chunks.append(ac)
         else:
             # conflict
-            cc = '<<<<<<< ' + self.a_file + '\n'
+            self.conflicts.append((o_range, a_range, b_range))
+            cc = b'<<<<<<< ' + self.a_file + b'\n'
             cc += ac
-            cc += '======= \n'
+            cc += b'======= \n'
             cc += bc
-            cc += '>>>>>>> ' + self.b_file + '\n'
+            cc += b'>>>>>>> ' + self.b_file + b'\n'
             self.chunks.append(cc)
+
 
     def emit_chunk(self, o, a, b):
         self.write_chunk((self.on, o-1), 
@@ -156,15 +154,18 @@ class Merge3Way(object):
                          (self.bn, b-1))
         self.on, self.an, self.bn = o - 1, a - 1, b - 1
 
+
     def emit_final_chunk(self):
         self.write_chunk((self.on, len(self.o_lines)+1), 
                          (self.an, len(self.a_lines)+1), 
                          (self.bn, len(self.b_lines)+1))
 
+
     def merge(self):
         self.generate_chunks()
-        res = ''.join(self.chunks)
-        print(res, end="")
+        res = b''.join(self.chunks)
+        return res
+
 
 def main():
     argv = sys.argv
@@ -173,9 +174,14 @@ def main():
     ofile = argv[1]
     afile = argv[2]
     bfile = argv[3]
-    use_myers = False
-    mrg3 = Merge3Way(ofile, afile, bfile, use_myers)
-    mrg3.merge()
+    with open(ofile, 'rb') as of:
+        ancestor = of.read()
+    with open(afile, 'rb') as af:
+        alice = af.read()
+    with open(bfile, 'rb') as bf:
+        bob = bf.read()
+    res = do_file_merge(alice, bob, ancestor)
+    print(res.decode('utf-8'),end='')
     return 0
 
 
