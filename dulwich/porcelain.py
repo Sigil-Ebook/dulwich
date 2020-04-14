@@ -404,6 +404,11 @@ def add(repo=".", paths=None):
         if not paths:
             paths = list(
                 get_untracked_paths(os.getcwd(), r.path, r.open_index()))
+            # extend with modified but unstaged files
+            normalizer = r.get_blob_normalizer()
+            filter_callback = normalizer.checking_normalize
+            paths.extend(list(
+                    get_unstaged_changes(r.open_index(), r.path, filter_callback)))
         relpaths = []
         if not isinstance(paths, list):
             paths = [paths]
