@@ -37,6 +37,7 @@ Currently implemented:
  * ls-files
  * ls-remote
  * ls-tree
+ * merge-base
  * pull
  * push
  * rm
@@ -1622,3 +1623,34 @@ def write_tree(repo):
     """
     with open_repo_closing(repo) as r:
         return r.open_index().commit(r.object_store)
+
+
+def merge_base(repo, committishs):
+    """Find the merge base to use for a set of commits.
+
+    Args:
+      repo: Repository in which the commits live
+      committishs: List of committish entries
+    Returns:
+      common merge commit
+    """
+    from .merge import find_merge_base
+    with open_repo_closing(repo) as r:
+        commits = [parse_commit(r, committish).id
+                   for committish in committishs]
+        return find_merge_base(r, commits)
+
+
+def branch_merge(repo, committishs, file_merger=None):
+    """Perform merge of set of commits representing branch heads
+    Args:
+      repo: Repository in which the commits live
+      committishs: List of committish entries
+      file_merger: routine to perform the 3-way merge
+    Returns:
+    """
+    from .merge import merge
+    with open_repo_closing(repo) as r:
+        commits = [parse_commit(r, committish).id
+                   for committish in committishs]
+        return merge(r, commits, rename_detector=None, file_merger=file_merger)
