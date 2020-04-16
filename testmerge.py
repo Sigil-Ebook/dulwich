@@ -14,6 +14,7 @@ def main():
     os.chdir("test1")
     print(porcelain.branch_list("."))
     print(porcelain.merge_base(".",["br1","br2"]))
+    porcelain.simple_merge_base(".",["br1","br2"])
     porcelain.branch_merge(".",["br1", "br2"], do_file_merge_myers)
 
 if __name__ == '__main__':

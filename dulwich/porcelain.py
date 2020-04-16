@@ -1625,6 +1625,20 @@ def write_tree(repo):
         return r.open_index().commit(r.object_store)
 
 
+def branch_merge(repo, committishs, file_merger=None):
+    """Perform merge of set of commits representing branch heads
+    Args:
+      repo: Repository in which the commits live
+      committishs: List of committish entries
+      file_merger: routine to perform the 3-way merge
+    Returns:
+    """
+    from .merge import merge
+    with open_repo_closing(repo) as r:
+        commits = [parse_commit(r, committish).id
+                   for committish in committishs]
+        return merge(r, commits, rename_detector=None, file_merger=file_merger)
+
 def merge_base(repo, committishs):
     """Find the merge base to use for a set of commits.
 
@@ -1641,16 +1655,28 @@ def merge_base(repo, committishs):
         return find_merge_base(r, commits)
 
 
-def branch_merge(repo, committishs, file_merger=None):
-    """Perform merge of set of commits representing branch heads
-    Args:
-      repo: Repository in which the commits live
-      committishs: List of committish entries
-      file_merger: routine to perform the 3-way merge
-    Returns:
-    """
-    from .merge import merge
+def simple_merge_base(repo, committishs):
+    from .walk import ORDER_DATE
     with open_repo_closing(repo) as r:
         commits = [parse_commit(r, committish).id
                    for committish in committishs]
-        return merge(r, commits, rename_detector=None, file_merger=file_merger)
+        # build up list of commit histories from most recent to oldest
+        # for each branch
+        commit_histories = []
+        for commit in commits:
+            walker = r.get_walker(max_entries=None, include=[commit], order=ORDER_DATE)
+            history = []
+            for entry in walker:
+                history.append(entry.commit.id)
+            commit_histories.append(history[:])
+    # walk first history looking for first matching commit in
+    # that exists in remaining histories
+    first_history = commit_histories[0]
+    commit_histories = commit_histories[1:]
+    for cmt in first_history:
+        found = True
+        for history in commit_histories:
+            found = found and cmt in history
+        if found:
+            print(cmt)
+            break
