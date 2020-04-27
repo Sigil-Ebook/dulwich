@@ -137,6 +137,7 @@ from dulwich.server import (
     update_server_info as server_update_server_info,
     )
 
+from dulwich.merge_base import find_merge_base
 
 # Module level tuple definition for status output
 GitStatus = namedtuple('GitStatus', 'staged unstaged untracked')
@@ -1639,7 +1640,7 @@ def branch_merge(repo, committishs, file_merger=None):
                    for committish in committishs]
         return merge(r, commits, rename_detector=None, file_merger=file_merger)
 
-def merge_base(repo, committishs):
+def git_merge_base(repo, committishs):
     """Find the merge base to use for a set of commits.
 
     Args:
@@ -1655,28 +1656,7 @@ def merge_base(repo, committishs):
         return find_merge_base(r, commits)
 
 
-def simple_merge_base(repo, committishs):
-    from .walk import ORDER_DATE
+def merge_base(repo, committishs):
     with open_repo_closing(repo) as r:
-        commits = [parse_commit(r, committish).id
-                   for committish in committishs]
-        # build up list of commit histories from most recent to oldest
-        # for each branch
-        commit_histories = []
-        for commit in commits:
-            walker = r.get_walker(max_entries=None, include=[commit], order=ORDER_DATE)
-            history = []
-            for entry in walker:
-                history.append(entry.commit.id)
-            commit_histories.append(history[:])
-    # walk first history looking for first matching commit in
-    # that exists in remaining histories
-    first_history = commit_histories[0]
-    commit_histories = commit_histories[1:]
-    for cmt in first_history:
-        found = True
-        for history in commit_histories:
-            found = found and cmt in history
-        if found:
-            print(cmt)
-            break
+        commits = [parse_commit(r, committish) for committish in committishs]
+        return find_merge_base(r, commits)
