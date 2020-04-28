@@ -1649,14 +1649,44 @@ def git_merge_base(repo, committishs):
     Returns:
       common merge commit
     """
-    from .merge import find_merge_base
+    from .merge import git_find_merge_base
     with open_repo_closing(repo) as r:
         commits = [parse_commit(r, committish).id
                    for committish in committishs]
-        return find_merge_base(r, commits)
+        return git_find_merge_base(r, commits)
 
 
-def merge_base(repo, committishs):
+
+def merge_base(repo, committishs, all=False):
+    """Find the merge base to use for a set of commits.
+    Args:
+      repo: Repository in which the commits live
+      committishs: List of committish entries
+      all: if true return multiple results as a list
+    Returns:
+      common merge commit id (or list of all if all is true)
+    """
     with open_repo_closing(repo) as r:
-        commits = [parse_commit(r, committish) for committish in committishs]
-        return find_merge_base(r, commits)
+        commits = [parse_commit(r, committish).id
+                   for committish in committishs]
+        lcas = find_merge_base(r, commits)
+        if all:
+            return lcas
+        if lcas:
+            return lcas[0]
+        return b''
+
+
+def merge_base_is_ancestor(repo, committish_A, committish_B):
+    """Test if committish_A is ancestor of committich_B
+    Args:
+      repo: Repository in which the commits live
+      committish_A, committish_B: commits to test
+    Returns:
+      True if commitish_A is ancestor of committish_B False otherwise
+    """
+    with open_repo_closing(repo) as r:
+        commit_A = parse_commit(r, committish_A).id
+        commit_B = parse_commit(r, committish_B).id
+        lcas = find_merge_base(r, [commit_A, commit_B])
+        return lcas == [commit_A]

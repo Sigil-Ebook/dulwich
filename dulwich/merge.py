@@ -22,6 +22,7 @@
 
 from collections import namedtuple
 
+from .merge_base import find_merge_base
 
 from .diff_tree import (
     TreeEntry,
@@ -43,7 +44,7 @@ class MergeConflict(namedtuple(
     """A merge conflict."""
 
 
-def find_merge_base(repo, commit_ids):
+def git_find_merge_base(repo, commit_ids):
     """Find a reasonable merge base.
 
     Args:
@@ -60,7 +61,6 @@ def find_merge_base(repo, commit_ids):
 
 def _merge_entry(new_path, object_store, this_entry, other_entry, base_entry, file_merger):
     """ 3 way merge an entry """
-    print("in _merge_entry")
     if file_merger is None:
         return MergeConflict(
             this_entry, other_entry,
@@ -83,8 +83,8 @@ def _merge_entry(new_path, object_store, this_entry, other_entry, base_entry, fi
         mode = this_entry.mode
     return TreeEntry(new_path, mode, merged_text_blob.id)
 
-def merge_trees(object_store, this_tree, other_tree, common_tree,
-                rename_detector=None, file_merger=None):
+def merge_tree(object_store, this_tree, other_tree, common_tree,
+               rename_detector=None, file_merger=None):
     """Merge two trees.
 
     Args:
@@ -98,7 +98,6 @@ def merge_trees(object_store, this_tree, other_tree, common_tree,
       iterator over objects, either TreeEntry (updating an entry)
         or MergeConflict (indicating a conflict)
     """
-    print("reached merge_trees")
     changes_this = tree_changes(object_store, common_tree, this_tree)
     changes_this_by_common_path = {
         change.old.path: change for change in changes_this if change.old}
@@ -160,7 +159,6 @@ def merge_trees(object_store, this_tree, other_tree, common_tree,
             else:
                 yield other_change.new
         elif other_change.type == CHANGE_MODIFY:
-            print("in change modify")
             if this_change and this_change.type == CHANGE_DELETE:
                 yield MergeConflict(
                     this_change.new, other_change.new, other_change.old,
@@ -168,18 +166,12 @@ def merge_trees(object_store, this_tree, other_tree, common_tree,
                     other_change.old.path)
             elif this_change and this_change.type in (
                     CHANGE_MODIFY, CHANGE_RENAME):
-                print("hello")
-                print(this_change.new.path)
-                print(this_change.new)
-                print(other_change.new)
-                print(other_change.old)
-                nentry = _merge_entry(this_change.new.path,
-                                      object_store, 
-                                      this_change.new, 
-                                      other_change.new, 
-                                      other_change.old, 
-                                      file_merger=file_merger)
-                yield nentry
+                yield _merge_entry(this_change.new.path,
+                                   object_store, 
+                                   this_change.new, 
+                                   other_change.new, 
+                                   other_change.old, 
+                                   file_merger=file_merger)
             elif this_change:
                 raise NotImplementedError(
                     '%r and %r' % (this_change, other_change))
@@ -200,11 +192,15 @@ def merge(repo, commit_ids, rename_detector=None, file_merger=None):
     """Perform a merge.
     """
     conflicts = []
-    merge_base = find_merge_base(repo, commit_ids)
+    lcas = find_merge_base(repo, commit_ids)
+    if lcas:
+        merge_base = lcas[0]
+    # what if no merge base exists?
+    #   should we set merge_base to this or other or ...
     [this_commit, other_commit] = commit_ids
     index = repo.open_index()
     this_id = index.commit(repo.object_store)
-    for entry in merge_trees(
+    for entry in merge_tree(
             repo.object_store,
             repo.object_store[this_commit].tree,
             repo.object_store[other_commit].tree,
@@ -212,7 +208,6 @@ def merge(repo, commit_ids, rename_detector=None, file_merger=None):
             rename_detector=rename_detector,
             file_merger = file_merger):
 
-        print(entry)
         if isinstance(entry, MergeConflict):
             conflicts.append(entry)
 
