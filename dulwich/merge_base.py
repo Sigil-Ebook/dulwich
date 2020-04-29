@@ -101,7 +101,9 @@ def test():
     def lookup_parents(commit_id):
         return parents.get(commit_id, [])
 
-    def run_test(inputs, expected):
+    def run_test(dag, inputs, expected):
+        nonlocal parents
+        parents = dag
         c1 = inputs[0]
         c2s = inputs[1:]
         res = _find_lcas(lookup_parents, c1, c2s)
@@ -116,8 +118,7 @@ def test():
         '1': [],
         '0': []
     }
-    parents = test1
-    test_passed = run_test(['4', '5'], set(['1','2']))
+    test_passed = run_test(test1, ['4', '5'], set(['1','2']))
     print('Test 1: Multiple LCA ', test_passed)
     all_tests_passed = all_tests_passed and test_passed
 
@@ -129,8 +130,7 @@ def test():
         '1': ['0'],
         '0': [],
     }
-    parents = test2
-    test_passed = run_test(['4', '3'], set([]))
+    test_passed = run_test(test2, ['4', '3'], set([]))
     print('Test 2: No Common Ancestor ', test_passed)
     all_tests_passed = all_tests_passed and test_passed
 
@@ -144,8 +144,7 @@ def test():
         'B': ['A'],
         'A': []
     }
-    parents = test3
-    test_passed = run_test(['D', 'C'], set(['C']))
+    test_passed = run_test(test3, ['D', 'C'], set(['C']))
     print('Test 3: Ancestor ', test_passed)
     all_tests_passed = all_tests_passed and test_passed
 
@@ -159,8 +158,7 @@ def test():
         'B': ['A'],
         'A': []
     }
-    parents = test4
-    test_passed = run_test(['G','D'], set(['D']))
+    test_passed = run_test(test4, ['G','D'], set(['D']))
     print('Test 4: Direct Parent ', test_passed)
     all_tests_passed = all_tests_passed and test_passed
 
@@ -174,8 +172,7 @@ def test():
         'B': ['A'],
         'A': []
     }
-    parents = test5
-    test_passed = run_test(['D', 'F'], set(['E','C']))
+    test_passed = run_test(test5, ['D', 'F'], set(['E','C']))
     print('Test 5: Cross Over ', test_passed)
     all_tests_passed = all_tests_passed and test_passed
 
@@ -199,8 +196,7 @@ def test():
     }
     # assumes a theoretical merge M exists that merges B and C first
     # which actually means find the first LCA from either of B OR C with A
-    parents = test6
-    test_passed = run_test(['A','B','C'], set(['1']))
+    test_passed = run_test(test6, ['A','B','C'], set(['1']))
     all_tests_passed = all_tests_passed and test_passed
     print('Test 6: LCA of 3 commits ', test_passed)
 
