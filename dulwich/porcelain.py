@@ -1640,6 +1640,7 @@ def branch_merge(repo, committishs, file_merger=None):
                    for committish in committishs]
         return merge(r, commits, rename_detector=None, file_merger=file_merger)
 
+
 def git_merge_base(repo, committishs):
     """Find the merge base to use for a set of commits.
 
@@ -1660,11 +1661,11 @@ def git_merge_base(repo, committishs):
 def merge_base(repo, committishs, all=False):
     """Find the merge base to use for a set of commits.
     Args:
-      repo: Repository in which the commits live
+      repo: Repository path in which the commits live
       committishs: List of committish entries
       all: if true return multiple results as a list
     Returns:
-      common merge commit id (or list of all if all is true)
+      common merge commit id or None (or list of all if all true)
     """
     with open_repo_closing(repo) as r:
         commits = [parse_commit(r, committish).id
@@ -1674,13 +1675,13 @@ def merge_base(repo, committishs, all=False):
             return lcas
         if lcas:
             return lcas[0]
-        return b''
+        return None
 
 
 def merge_base_is_ancestor(repo, committish_A, committish_B):
     """Test if committish_A is ancestor of committich_B
     Args:
-      repo: Repository in which the commits live
+      repo: Repository path in which the commits live
       committish_A, committish_B: commits to test
     Returns:
       True if commitish_A is ancestor of committish_B False otherwise
