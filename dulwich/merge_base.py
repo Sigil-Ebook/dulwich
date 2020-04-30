@@ -11,7 +11,6 @@ Implementation of merge-base following the approach of git
 import sys
 from collections import deque
 
-from dulwich.repo import (BaseRepo, Repo)
 
 def _find_lcas(lookup_parents, c1, c2s):
     cands = []
@@ -35,7 +34,7 @@ def _find_lcas(lookup_parents, c1, c2s):
     cstates[c1] = _ANC_OF_1
     wlst.append(c1)
     for c2 in c2s:
-        cstates[c2] = _ANC_OF_2       
+        cstates[c2] = _ANC_OF_2
         wlst.append(c2)
 
     # loop until no other LCA candidates are viable in working list
@@ -145,7 +144,7 @@ def test():
         '1': [],
         '0': []
     }
-    test_passed = run_test(test1, ['4', '5'], set(['1','2']))
+    test_passed = run_test(test1, ['4', '5'], set(['1', '2']))
     print('Test 1: Multiple LCA ', test_passed)
     all_tests_passed = all_tests_passed and test_passed
 
@@ -185,7 +184,7 @@ def test():
         'B': ['A'],
         'A': []
     }
-    test_passed = run_test(test4, ['G','D'], set(['D']))
+    test_passed = run_test(test4, ['G', 'D'], set(['D']))
     print('Test 4: Direct Parent ', test_passed)
     all_tests_passed = all_tests_passed and test_passed
 
@@ -199,7 +198,7 @@ def test():
         'B': ['A'],
         'A': []
     }
-    test_passed = run_test(test5, ['D', 'F'], set(['E','C']))
+    test_passed = run_test(test5, ['D', 'F'], set(['E', 'C']))
     print('Test 5: Cross Over ', test_passed)
     all_tests_passed = all_tests_passed and test_passed
 
@@ -223,7 +222,7 @@ def test():
     }
     # assumes a theoretical merge M exists that merges B and C first
     # which actually means find the first LCA from either of B OR C with A
-    test_passed = run_test(test6, ['A','B','C'], set(['1']))
+    test_passed = run_test(test6, ['A', 'B', 'C'], set(['1']))
     all_tests_passed = all_tests_passed and test_passed
     print('Test 6: LCA of 3 commits ', test_passed)
 
@@ -247,8 +246,9 @@ def test():
         '1': ['2'],
         '2': [],
     }
+    parents = test7
     lcas = ['A']
-    others = ['B','C']
+    others = ['B', 'C']
     for cmt in others:
         next_lcas = []
         for ca in lcas:
@@ -262,6 +262,7 @@ def test():
     if all_tests_passed:
         print('All Tests Succesfful')
     return 0
+
 
 if __name__ == '__main__':
     sys.exit(test())

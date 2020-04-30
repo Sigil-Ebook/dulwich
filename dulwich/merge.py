@@ -59,7 +59,8 @@ def git_find_merge_base(repo, commit_ids):
         cwd=repo.path).rstrip(b'\n')
 
 
-def _merge_entry(new_path, object_store, this_entry, other_entry, base_entry, file_merger):
+def _merge_entry(new_path, object_store, this_entry,
+                 other_entry, base_entry, file_merger):
     """ 3 way merge an entry """
     if file_merger is None:
         return MergeConflict(
@@ -82,6 +83,7 @@ def _merge_entry(new_path, object_store, this_entry, other_entry, base_entry, fi
             raise NotImplementedError
         mode = this_entry.mode
     return TreeEntry(new_path, mode, merged_text_blob.id)
+
 
 def merge_tree(object_store, this_tree, other_tree, common_tree,
                rename_detector=None, file_merger=None):
@@ -167,10 +169,10 @@ def merge_tree(object_store, this_tree, other_tree, common_tree,
             elif this_change and this_change.type in (
                     CHANGE_MODIFY, CHANGE_RENAME):
                 yield _merge_entry(this_change.new.path,
-                                   object_store, 
-                                   this_change.new, 
-                                   other_change.new, 
-                                   other_change.old, 
+                                   object_store,
+                                   this_change.new,
+                                   other_change.new,
+                                   other_change.old,
                                    file_merger=file_merger)
             elif this_change:
                 raise NotImplementedError(
@@ -198,15 +200,13 @@ def merge(repo, commit_ids, rename_detector=None, file_merger=None):
     # what if no merge base exists?
     #   should we set merge_base to this or other or ...
     [this_commit, other_commit] = commit_ids
-    index = repo.open_index()
-    this_id = index.commit(repo.object_store)
     for entry in merge_tree(
             repo.object_store,
             repo.object_store[this_commit].tree,
             repo.object_store[other_commit].tree,
             repo.object_store[merge_base].tree,
             rename_detector=rename_detector,
-            file_merger = file_merger):
+            file_merger=file_merger):
 
         if isinstance(entry, MergeConflict):
             conflicts.append(entry)

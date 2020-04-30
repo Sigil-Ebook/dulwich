@@ -12,7 +12,6 @@ def main():
     acwd = os.getcwd()
     os.chdir("test1")
     print(porcelain.branch_list("."))
-    print(porcelain.git_merge_base(".",["br1","br2"]))
     mb = porcelain.merge_base(".",["br1", "br2"])
     print(mb)
     print(porcelain.merge_base_is_ancestor(".", mb, "br1"))

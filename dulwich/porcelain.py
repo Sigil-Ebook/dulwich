@@ -137,7 +137,10 @@ from dulwich.server import (
     update_server_info as server_update_server_info,
     )
 
-from dulwich.merge_base import find_merge_base
+from dulwich.merge_base import (
+    find_merge_base,
+    find_octopus_base
+)
 
 # Module level tuple definition for status output
 GitStatus = namedtuple('GitStatus', 'staged unstaged untracked')
@@ -409,8 +412,8 @@ def add(repo=".", paths=None):
             # extend with modified but unstaged files
             normalizer = r.get_blob_normalizer()
             filter_callback = normalizer.checking_normalize
-            paths.extend(list(
-                    get_unstaged_changes(r.open_index(), r.path, filter_callback)))
+            paths.extend(list(get_unstaged_changes(r.open_index(),
+                              r.path, filter_callback)))
         relpaths = []
         if not isinstance(paths, list):
             paths = [paths]
@@ -1641,36 +1644,23 @@ def branch_merge(repo, committishs, file_merger=None):
         return merge(r, commits, rename_detector=None, file_merger=file_merger)
 
 
-def git_merge_base(repo, committishs):
-    """Find the merge base to use for a set of commits.
-
-    Args:
-      repo: Repository in which the commits live
-      committishs: List of committish entries
-    Returns:
-      common merge commit
-    """
-    from .merge import git_find_merge_base
-    with open_repo_closing(repo) as r:
-        commits = [parse_commit(r, committish).id
-                   for committish in committishs]
-        return git_find_merge_base(r, commits)
-
-
-
-def merge_base(repo, committishs, all=False):
+def merge_base(repo, committishs, all=False, octopus=False):
     """Find the merge base to use for a set of commits.
     Args:
       repo: Repository path in which the commits live
       committishs: List of committish entries
       all: if true return multiple results as a list
+      octopus: if true find LCA of commits considered simultaneously
     Returns:
       common merge commit id or None (or list of all if all true)
     """
     with open_repo_closing(repo) as r:
         commits = [parse_commit(r, committish).id
                    for committish in committishs]
-        lcas = find_merge_base(r, commits)
+        if octopus:
+            lcas = find_octopus_base(r, commits)
+        else:
+            lcas = find_merge_base(r, commits)
         if all:
             return lcas
         if lcas:
