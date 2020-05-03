@@ -1,4 +1,9 @@
-0.19.16	UNRELEASED
+0.19.17	UNRELEASED
+
+ * Don't break when encountering block devices.
+   (Jelmer Vernooĳ)
+
+0.19.16	2020-04-17
 
  * Don't send "deepen None" to server if graph walker
    supports shallow. (Jelmer Vernooĳ, #747)
@@ -10,6 +15,9 @@
  * Support tweaking the compression level for
    pack objects through the "core.packCompression" and
    "core.compression" settings. (Jelmer Vernooĳ)
+
+ * Add a "dulwich.contrib.diffstat" module.
+   (Kevin Hendricks)
 
 0.19.15	2020-01-26
 

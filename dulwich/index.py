@@ -591,11 +591,8 @@ def blob_from_path_and_stat(fs_path, st):
     """
     assert isinstance(fs_path, bytes)
     blob = Blob()
-    if not stat.S_ISLNK(st.st_mode):
-        with open(fs_path, 'rb') as f:
-            blob.data = f.read()
-    else:
-        if sys.platform == 'win32' and sys.version_info[0] == 3:
+    if stat.S_ISLNK(st.st_mode):
+        if sys.platform == 'win32':
             # os.readlink on Python3 on Windows requires a unicode string.
             # TODO(jelmer): Don't assume tree_encoding == fs_encoding
             tree_encoding = sys.getfilesystemencoding()
@@ -603,6 +600,9 @@ def blob_from_path_and_stat(fs_path, st):
             blob.data = os.readlink(fs_path).encode(tree_encoding)
         else:
             blob.data = os.readlink(fs_path)
+    else:
+        with open(fs_path, 'rb') as f:
+            blob.data = f.read()
     return blob
 
 
@@ -673,6 +673,9 @@ def get_unstaged_changes(index, root_path, filter_blob_callback=None):
             if stat.S_ISDIR(st.st_mode):
                 if _has_directory_changed(tree_path, entry):
                     yield tree_path
+                continue
+
+            if not stat.S_ISREG(st.st_mode) and not stat.S_ISLNK(st.st_mode):
                 continue
 
             blob = blob_from_path_and_stat(full_path, st)
@@ -757,10 +760,13 @@ def index_entry_from_path(path, object_store=None):
                 st, head, 0, mode=S_IFGITLINK)
         return None
 
-    blob = blob_from_path_and_stat(path, st)
-    if object_store is not None:
-        object_store.add_object(blob)
-    return index_entry_from_stat(st, blob.id, 0)
+    if stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode):
+        blob = blob_from_path_and_stat(path, st)
+        if object_store is not None:
+            object_store.add_object(blob)
+        return index_entry_from_stat(st, blob.id, 0)
+
+    return None
 
 
 def iter_fresh_entries(paths, root_path, object_store=None):
