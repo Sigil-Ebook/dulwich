@@ -401,6 +401,27 @@ def _get_file_info(file_path):
     return (hexsha, fmode)
 
 
+def write_diff(f, a, b):
+    (name1, mode1, sha1, content1) = a
+    (name2, mode2, sha2, content2) = b
+    if not name2:
+        name2 = name1
+    if not name1:
+        name1 = name2
+    old_path = patch_filename(name1, b"a")
+    new_path = patch_filename(name2, b"b")
+    f.write(b"diff --git " + old_path + b" " + new_path + b"\n")
+    f.write(b"index " + shortid(sha1) + b".." + shortid(sha2) + b"\n")
+    if is_binary(content1) or is_binary(content2):
+        f.write(b"Binary files " + old_path + b" and " + new_path + b" differ\n")
+    else:
+        f.writelines(unified_diff(content1.splitlines(keepends=True),
+                                  content2.splitlines(keepends=True), 
+                                  old_path,
+                                  new_path)
+                    )
+
+
 def write_tree_workingdir_diff(f, store, tree, names, diff_binary=False):
     """Write diff of tree against current working dir
 
@@ -433,24 +454,10 @@ def write_tree_workingdir_diff(f, store, tree, names, diff_binary=False):
                 filepath = name2.replace(b'/', os_sep_bytes)
             with open(filepath, 'rb') as d:
                 content2 = d.read()
-            if name1:
-                content1 = store[sha1].as_raw_string()
-            if not name2:
-                name2 = name1
-            if not name1:
-                name1 = name2
-            old_path = patch_filename(name1, b"a")
-            new_path = patch_filename(name2, b"b")
-            f.write(b"diff --git " + old_path + b" " + new_path + b"\n")
-            f.write(b"index " + shortid(sha1) + b".." + shortid(sha2) + b"\n")
-            if is_binary(content1) or is_binary(content2):
-                f.write(b"Binary files " + old_path + b" and " + new_path + b" differ\n")
-            else:
-                f.writelines(unified_diff(content1.splitlines(keepends=True),
-                                          content2.splitlines(keepends=True), 
-                                          old_path,
-                                          new_path)
-                             )
+        if name1:
+            content1 = store[sha1].as_raw_string()
+        write_diff(f, (name1, mode1, sha1, content1),
+                      (name2, mode2, sha2, content2))
 
 
 def write_tree_index_diff(f, store, tree, index, diff_binary=False):
@@ -472,23 +479,8 @@ def write_tree_index_diff(f, store, tree, index, diff_binary=False):
             content2 = store[sha2].as_raw_string()
         if name1:
             content1 = store[sha1].as_raw_string()
-        if not name2:
-            name2 = name1
-        if not name1:
-            name1 = name2
-        old_path = patch_filename(name1, b"a")
-        new_path = patch_filename(name2, b"b")
-        f.write(b"diff --git " + old_path + b" " + new_path + b"\n")
-        f.write(b"index " + shortid(sha1) + b".." + shortid(sha2) + b"\n")
-        if is_binary(content1) or is_binary(content2):
-            f.write(b"Binary files " + old_path + b" and " + new_path + b" differ\n")
-        else:
-            f.writelines(unified_diff(content1.splitlines(keepends=True),
-                                      content2.splitlines(keepends=True), 
-                                      old_path,
-                                      new_path)
-                         )
-
+        write_diff(f, (name1, mode1, sha1, content1),
+                      (name2, mode2, sha2, content2))
 
 
 def write_index_workingdir_diff(f, store, index, names, diff_binary=False):
@@ -523,21 +515,8 @@ def write_index_workingdir_diff(f, store, index, names, diff_binary=False):
                 filepath = name2.replace(b'/', os_sep_bytes)
             with open(filepath, 'rb') as d:
                 content2 = d.read()
-            if name1:
-                content1 = store[sha1].as_raw_string()
-            if not name2:
-                name2 = name1
-            if not name1:
-                name1 = name2
-            old_path = patch_filename(name1, b"a")
-            new_path = patch_filename(name2, b"b")
-            f.write(b"diff --git " + old_path + b" " + new_path + b"\n")
-            f.write(b"index " + shortid(sha1) + b".." + shortid(sha2) + b"\n")
-            if is_binary(content1) or is_binary(content2):
-                f.write(b"Binary files " + old_path + b" and " + new_path + b" differ\n")
-            else:
-                f.writelines(unified_diff(content1.splitlines(keepends=True),
-                                          content2.splitlines(keepends=True), 
-                                          old_path,
-                                          new_path)
-                             )
+        if name1:
+            content1 = store[sha1].as_raw_string()
+
+        write_diff(f, (name1, mode1, sha1, content1),
+                      (name2, mode2, sha2, content2))
