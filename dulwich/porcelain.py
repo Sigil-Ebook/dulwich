@@ -96,6 +96,7 @@ from dulwich.ignore import IgnoreFilterManager
 from dulwich.index import (
     blob_from_path_and_stat,
     get_unstaged_changes,
+    os_sep_bytes
     )
 from dulwich.object_store import (
     tree_lookup_path,
@@ -118,7 +119,12 @@ from dulwich.pack import (
     write_pack_index,
     write_pack_objects,
     )
-from dulwich.patch import write_tree_diff
+from dulwich.patch import (
+    write_tree_diff,
+    write_tree_workingdir_diff,
+    write_tree_index_diff,
+    write_index_workingdir_diff
+)
 from dulwich.protocol import (
     Protocol,
     ZERO_SHA,
@@ -411,7 +417,7 @@ def add(repo=".", paths=None):
                 get_untracked_paths(os.getcwd(), r.path, r.open_index()))
             # extend with modified but unstaged files
             normalizer = r.get_blob_normalizer()
-            filter_callback = normalizer.checking_normalize
+            filter_callback = normalizer.checkin_normalize
             paths.extend(list(get_unstaged_changes(r.open_index(),
                               r.path, filter_callback)))
         relpaths = []
@@ -754,7 +760,11 @@ def diff_tree(repo, old_tree, new_tree, outstream=sys.stdout):
       outstream: Stream to write to
     """
     with open_repo_closing(repo) as r:
-        write_tree_diff(outstream, r.object_store, old_tree, new_tree)
+        # write_tree_diff works with byte streams only
+        diffstream = BytesIO()
+        write_tree_diff(diffstream, r.object_store, tree1, tree2)
+        diffstream.seek(0)
+        outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING, 'surrogateescape'))
 
 
 def rev_list(repo, commits, outstream=sys.stdout):
@@ -1019,14 +1029,21 @@ def _walk_working_dir_paths(frompath, basepath):
       frompath: Path to begin walk
       basepath: Path to compare to
     """
+    # Note os.walk will return bytes if passed in a bytes path
+
+    _SKIP = '.git'
+    if isinstance(frompath, bytes):
+        _SKIP = b'.git'
+
     for dirpath, dirnames, filenames in os.walk(frompath):
         # Skip .git and below.
-        if '.git' in dirnames:
-            dirnames.remove('.git')
+        if _SKIP in dirnames:
+            dirnames.remove(_SKIP)
             if dirpath != basepath:
                 continue
-        if '.git' in filenames:
-            filenames.remove('.git')
+
+        if _SKIP in filenames:
+            filenames.remove(_SKIP)
             if dirpath != basepath:
                 continue
 
@@ -1681,3 +1698,90 @@ def merge_base_is_ancestor(repo, committish_A, committish_B):
         commit_B = parse_commit(r, committish_B).id
         lcas = find_merge_base(r, [commit_A, commit_B])
         return lcas == [commit_A]
+
+
+def diff(repo, committish1=None,
+         committish2=None,
+         cached=False,
+         outstream=sys.stdout):
+    """Compares various commits, the index, and/or the working directory
+
+    Args:
+      repo: Path to repository
+      committish1: commit to use as base for comparison
+      committish2: commit to use as target for comparison
+      cached: if true use the index (staged==cached) as target
+      outstream: Stream to write to
+
+    Returns:
+       diff(repo):
+           returns comparison of index to working directory
+
+       diff(repo, commitish1):
+           returns comparison of commit1 to working directory
+
+       diff(repo, committish1, cached=True):
+           returns comparison of commit1 to the index (staged == cached)
+
+       diff(repo, committish1, committish2):
+           returns the changes in commit2 relative to commit1
+    """
+    with open_repo_closing(repo) as r:
+
+        if committish1 and committish2:
+            # diff of commit1 to commit2
+            commit1 = parse_commit(r, committish1).id
+            commit2 = parse_commit(r, committish2).id
+            tree1 = r.object_store[commit1].tree
+            tree2 = r.object_store[commit2].tree
+            diffstream = BytesIO()
+            write_tree_diff(diffstream, r.object_store, tree1, tree2)
+            diffstream.seek(0)
+            outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING, 'surrogateescape'))
+            return
+
+        if committish1 and cached:
+            # diff of commit1 to the index (staged=cached)
+            commit = parse_commit(r, committish1).id
+            tree = r.object_store[commit].tree
+            index = r.open_index()
+            diffstream = BytesIO()
+            write_tree_index_diff(diffstream, r.object_store, tree, index)
+            diffstream.seek(0)
+            outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING, 'surrogateescape'))
+            return
+
+        # remaining types involve the working directory so build up file name list
+        # of non-ignored files in working directory as tree paths (bytes)
+        names = []
+        wkdir_path = r.path.encode(DEFAULT_ENCODING, 'surrogateescape')
+        ignore_manager = IgnoreFilterManager.from_repo(r)
+        for apath, isdir in _walk_working_dir_paths(wkdir_path, wkdir_path):
+            file_path = os.path.relpath(apath, wkdir_path)
+            if os_sep_bytes != b'/':
+                tree_path = tree_path.replace(os_sep_bytes, b'/')
+            else:
+                tree_path = file_path
+            # FIXME: does ignore_manger use tree paths or file paths?
+            # FIXME: the ignore_manager can not seem to handle byte paths
+            is_ignored = ignore_manager.is_ignored(tree_path.decode('utf-8'))
+            if not isdir and not is_ignored:
+                names.append(tree_path)
+
+        if committish1 and not cached:
+            # diff of commit1 to the working directory
+            commit = parse_commit(r, committish1).id
+            tree = r.object_store[commit].tree
+            diffstream = BytesIO()
+            write_tree_workingdir_diff(diffstream, r.object_store, tree, names)
+            diffstream.seek(0)
+            outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING, 'surrogateescape'))
+            return
+
+        # diff of the index to the working directory
+        index = r.open_index()
+        diffstream = BytesIO()
+        write_index_workingdir_diff(diffstream, r.object_store, index, names)
+        diffstream.seek(0)
+        outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING, 'surrogateescape'))
+        return

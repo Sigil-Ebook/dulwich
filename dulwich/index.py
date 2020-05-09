@@ -437,6 +437,47 @@ def changes_from_tree(names, lookup_entry, object_store, tree,
             yield ((None, name), (None, other_mode), (None, other_sha))
 
 
+def changes_from_workingdir(names, lookup_entry, object_store, index,
+                      want_unchanged=False):
+    """Find the differences between the contents of the index and
+    the working directory.
+
+    Args:
+      names: Iterable of names in the working copy
+      lookup_entry: Function to lookup an entry in the working copy
+      object_store: Object store to use for retrieving index contents
+      index: Index object of current repo
+      want_unchanged: Whether unchanged files should be reported
+    Returns: Iterator over tuples with (oldpath, newpath), (oldmode, newmode),
+        (oldsha, newsha)
+    """
+    # TODO(jelmer): Support a include_trees option
+    other_names = set(names)
+
+    if index is not None:
+        for name, entry in index.iteritems():
+            sha = entry.sha
+            mode = entry.mode
+            try:
+                (other_sha, other_mode) = lookup_entry(name)
+            except KeyError:
+                # Was removed
+                yield ((name, None), (mode, None), (sha, None))
+            else:
+                other_names.remove(name)
+                if (want_unchanged or other_sha != sha or other_mode != mode):
+                    yield ((name, name), (mode, other_mode), (sha, other_sha))
+
+    # include untracked files
+    for name in other_names:
+        try:
+            (other_sha, other_mode) = lookup_entry(name)
+        except KeyError:
+            pass
+        else:
+            yield ((None, name), (None, other_mode), (None, other_sha))
+
+
 def index_entry_from_stat(stat_val, hex_sha, flags, mode=None):
     """Create a new index entry from a stat value.
 
