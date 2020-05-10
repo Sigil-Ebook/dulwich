@@ -764,8 +764,7 @@ def diff_tree(repo, old_tree, new_tree, outstream=sys.stdout):
         diffstream = BytesIO()
         write_tree_diff(diffstream, r.object_store, old_tree, new_tree)
         diffstream.seek(0)
-        outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING,
-                                                     'surrogateescape'))
+        outstream.write(os.fsdecode(diffstream.getvalue())),
 
 
 def rev_list(repo, commits, outstream=sys.stdout):
@@ -1738,8 +1737,7 @@ def diff(repo, committish1=None,
             diffstream = BytesIO()
             write_tree_diff(diffstream, r.object_store, tree1, tree2)
             diffstream.seek(0)
-            outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING,
-                                                         'surrogateescape'))
+            outstream.write(os.fsdecode(diffstream.getvalue()))
             return
 
         if committish1 and cached:
@@ -1750,15 +1748,14 @@ def diff(repo, committish1=None,
             diffstream = BytesIO()
             write_tree_index_diff(diffstream, r.object_store, tree, index)
             diffstream.seek(0)
-            outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING,
-                                                         'surrogateescape'))
+            outstream.write(os.fsdecode(diffstream.getvalue()))
             return
 
         # remaining types involve the working directory so
         # build up file name list of non-ignored files in working
         # directory as tree paths (bytes)
         names = []
-        wkdir_path = r.path.encode(DEFAULT_ENCODING, 'surrogateescape')
+        wkdir_path = os.fsencode(r.path)
         ignore_manager = IgnoreFilterManager.from_repo(r)
         for apath, isdir in _walk_working_dir_paths(wkdir_path, wkdir_path):
             file_path = os.path.relpath(apath, wkdir_path)
@@ -1767,8 +1764,11 @@ def diff(repo, committish1=None,
             else:
                 tree_path = file_path
             # FIXME: does ignore_manger use tree paths or file paths?
-            # FIXME: the ignore_manager can not seem to handle byte paths
-            is_ignored = ignore_manager.is_ignored(tree_path.decode('utf-8'))
+            # FIXME: The IgnoreManager seems to only accept unicode str paths
+            # FIXME: The IgnoreManager code mixes bytes code and str code
+            #        File "dulwich/ignore.py", line 322, in find_matching
+            #        parts = path.split('/') (should be split on b'/' if bytes)
+            is_ignored = ignore_manager.is_ignored(os.fsdecode(tree_path))
             if not isdir and not is_ignored:
                 names.append(tree_path)
 
@@ -1786,8 +1786,7 @@ def diff(repo, committish1=None,
             write_tree_workingdir_diff(diffstream, r.object_store,
                                        tree, names, filter_callback)
             diffstream.seek(0)
-            outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING,
-                                                         'surrogateescape'))
+            outstream.write(os.fsdecode(diffstream.getvalue()))
             return
 
         # diff of the index to the working directory
@@ -1796,6 +1795,5 @@ def diff(repo, committish1=None,
         write_index_workingdir_diff(diffstream, r.object_store,
                                     index, names, filter_callback)
         diffstream.seek(0)
-        outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING,
-                                                     'surrogateescape'))
+        outstream.write(os.fsdecode(diffstream.getvalue()))
         return
