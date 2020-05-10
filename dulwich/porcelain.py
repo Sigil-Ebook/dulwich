@@ -762,9 +762,10 @@ def diff_tree(repo, old_tree, new_tree, outstream=sys.stdout):
     with open_repo_closing(repo) as r:
         # write_tree_diff works with byte streams only
         diffstream = BytesIO()
-        write_tree_diff(diffstream, r.object_store, tree1, tree2)
+        write_tree_diff(diffstream, r.object_store, old_tree, new_tree)
         diffstream.seek(0)
-        outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING, 'surrogateescape'))
+        outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING,
+                                                     'surrogateescape'))
 
 
 def rev_list(repo, commits, outstream=sys.stdout):
@@ -1737,7 +1738,8 @@ def diff(repo, committish1=None,
             diffstream = BytesIO()
             write_tree_diff(diffstream, r.object_store, tree1, tree2)
             diffstream.seek(0)
-            outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING, 'surrogateescape'))
+            outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING,
+                                                         'surrogateescape'))
             return
 
         if committish1 and cached:
@@ -1748,18 +1750,20 @@ def diff(repo, committish1=None,
             diffstream = BytesIO()
             write_tree_index_diff(diffstream, r.object_store, tree, index)
             diffstream.seek(0)
-            outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING, 'surrogateescape'))
+            outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING,
+                                                         'surrogateescape'))
             return
 
-        # remaining types involve the working directory so build up file name list
-        # of non-ignored files in working directory as tree paths (bytes)
+        # remaining types involve the working directory so
+        # build up file name list of non-ignored files in working
+        # directory as tree paths (bytes)
         names = []
         wkdir_path = r.path.encode(DEFAULT_ENCODING, 'surrogateescape')
         ignore_manager = IgnoreFilterManager.from_repo(r)
         for apath, isdir in _walk_working_dir_paths(wkdir_path, wkdir_path):
             file_path = os.path.relpath(apath, wkdir_path)
             if os_sep_bytes != b'/':
-                tree_path = tree_path.replace(os_sep_bytes, b'/')
+                tree_path = file_path.replace(os_sep_bytes, b'/')
             else:
                 tree_path = file_path
             # FIXME: does ignore_manger use tree paths or file paths?
@@ -1768,20 +1772,30 @@ def diff(repo, committish1=None,
             if not isdir and not is_ignored:
                 names.append(tree_path)
 
+        # set up a normalizer callback for checkin
+        # to handle line ending conversion for files in
+        # the working directory
+        normalizer = r.get_blob_normalizer()
+        filter_callback = normalizer.checkin_normalize
+
         if committish1 and not cached:
             # diff of commit1 to the working directory
             commit = parse_commit(r, committish1).id
             tree = r.object_store[commit].tree
             diffstream = BytesIO()
-            write_tree_workingdir_diff(diffstream, r.object_store, tree, names)
+            write_tree_workingdir_diff(diffstream, r.object_store,
+                                       tree, names, filter_callback)
             diffstream.seek(0)
-            outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING, 'surrogateescape'))
+            outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING,
+                                                         'surrogateescape'))
             return
 
         # diff of the index to the working directory
         index = r.open_index()
         diffstream = BytesIO()
-        write_index_workingdir_diff(diffstream, r.object_store, index, names)
+        write_index_workingdir_diff(diffstream, r.object_store,
+                                    index, names, filter_callback)
         diffstream.seek(0)
-        outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING, 'surrogateescape'))
+        outstream.write(diffstream.getvalue().decode(DEFAULT_ENCODING,
+                                                     'surrogateescape'))
         return

@@ -28,7 +28,6 @@ from difflib import SequenceMatcher
 import email.parser
 import time
 import os
-import hashlib
 
 from dulwich.objects import (
     Blob,
@@ -39,6 +38,7 @@ from dulwich.objects import (
 from dulwich.index import (
     changes_from_tree,
     changes_from_workingdir,
+    blob_from_path_and_stat,
     os_sep_bytes
 )
 
@@ -382,26 +382,7 @@ def parse_patch_message(msg, encoding=None):
     return c, diff, version
 
 
-# To-Do handle line_ending conversion or 
-# convert to use blob_from_path_and_stat
-# along with a blob checkin / checkout normalizer
-def _get_file_info(file_path):
-    stat = os.lstat(file_path)
-    fsize = stat.st_size 
-    fmode = stat.st_mode
-    h = hashlib.sha1()
-    h.update(b'blob %d' % fsize + b'\0')
-    with open(file_path, 'rb') as f:
-        while True:
-            chunk = f.read(h.block_size)
-            if not chunk:
-                break
-            h.update(chunk)
-        hexsha = h.hexdigest().encode('ascii')
-    return (hexsha, fmode)
-
-
-def write_diff(f, a, b):
+def _write_diff(f, a, b):
     (name1, mode1, sha1, content1) = a
     (name2, mode2, sha2, content2) = b
     if not name2:
@@ -413,16 +394,21 @@ def write_diff(f, a, b):
     f.write(b"diff --git " + old_path + b" " + new_path + b"\n")
     f.write(b"index " + shortid(sha1) + b".." + shortid(sha2) + b"\n")
     if is_binary(content1) or is_binary(content2):
-        f.write(b"Binary files " + old_path + b" and " + new_path + b" differ\n")
+        f.write(b"Binary files "
+                + old_path
+                + b" and "
+                + new_path
+                + b" differ\n")
     else:
         f.writelines(unified_diff(content1.splitlines(keepends=True),
-                                  content2.splitlines(keepends=True), 
+                                  content2.splitlines(keepends=True),
                                   old_path,
-                                  new_path)
-                    )
+                                  new_path))
 
 
-def write_tree_workingdir_diff(f, store, tree, names, diff_binary=False):
+def write_tree_workingdir_diff(f, store, tree, names,
+                               filter_callback=None,
+                               diff_binary=False):
     """Write diff of tree against current working dir
 
     Args:
@@ -436,28 +422,38 @@ def write_tree_workingdir_diff(f, store, tree, names, diff_binary=False):
     entry_info = {}
 
     def lookup_entry(name):
-        return entry_info.get(name, (None, None))
+        if name in entry_info:
+            blob, fmode = entry_info[name]
+            return (blob.id, fmode)
+        return (None, None)
 
+    # convert tree_paths that represent files in working dir
+    # to an equivalent temp blob mode and store it
+    # This should properly handle checkin normalization
+    # which is required to make diffs work properly
     for name in names:
         filepath = name
         if os_sep_bytes != b'/':
             filepath = name.replace(b'/', os_sep_bytes)
-        entry_info[name] = _get_file_info(filepath)
-    
+        stat = os.stat(filepath)
+        fmode = stat.st_mode
+        blob = blob_from_path_and_stat(filepath, stat)
+        if filter_callback:
+            blob = filter_callback(blob, name)
+        entry_info[name] = (blob, fmode)
+
     for change_entry in changes_from_tree(names, lookup_entry, store, tree):
         (name1, name2), (mode1, mode2), (sha1, sha2) = change_entry
         content1 = b''
         content2 = b''
         if name2:
-            filepath = name2
-            if os_sep_bytes != b'/':
-                filepath = name2.replace(b'/', os_sep_bytes)
-            with open(filepath, 'rb') as d:
-                content2 = d.read()
+            if name2 in entry_info:
+                blob, fmode = entry_info[name2]
+                content2 = blob.as_raw_string()
         if name1:
             content1 = store[sha1].as_raw_string()
-        write_diff(f, (name1, mode1, sha1, content1),
-                      (name2, mode2, sha2, content2))
+        _write_diff(f, (name1, mode1, sha1, content1),
+                       (name2, mode2, sha2, content2))
 
 
 def write_tree_index_diff(f, store, tree, index, diff_binary=False):
@@ -470,7 +466,6 @@ def write_tree_index_diff(f, store, tree, index, diff_binary=False):
       diff_binary: Whether to diff files even if they
         are considered binary files by is_binary().
     """
-    from dulwich.index import Index
     for change_entry in index.changes_from_tree(store, tree):
         (name1, name2), (mode1, mode2), (sha1, sha2) = change_entry
         content1 = b''
@@ -479,11 +474,13 @@ def write_tree_index_diff(f, store, tree, index, diff_binary=False):
             content2 = store[sha2].as_raw_string()
         if name1:
             content1 = store[sha1].as_raw_string()
-        write_diff(f, (name1, mode1, sha1, content1),
-                      (name2, mode2, sha2, content2))
+        _write_diff(f, (name1, mode1, sha1, content1),
+                       (name2, mode2, sha2, content2))
 
 
-def write_index_workingdir_diff(f, store, index, names, diff_binary=False):
+def write_index_workingdir_diff(f, store, index, names,
+                                filter_callback=None,
+                                diff_binary=False):
     """Write diff of index against current working dir
 
     Args:
@@ -497,26 +494,36 @@ def write_index_workingdir_diff(f, store, index, names, diff_binary=False):
     entry_info = {}
 
     def lookup_entry(name):
-        return entry_info.get(name, (None, None))
+        if name in entry_info:
+            blob, fmode = entry_info[name]
+            return (blob.id, fmode)
+        return (None, None)
 
+    # convert tree_paths that represent files in working dir
+    # to an equivalent temp blob mode and store it
+    # This should properly handle checkin normalization
+    # which is required to make diffs work properly
     for name in names:
         filepath = name
         if os_sep_bytes != b'/':
             filepath = name.replace(b'/', os_sep_bytes)
-        entry_info[name] = _get_file_info(filepath)
-    
-    for change_entry in changes_from_workingdir(names, lookup_entry, store, index):
+        stat = os.stat(filepath)
+        fmode = stat.st_mode
+        blob = blob_from_path_and_stat(filepath, stat)
+        if filter_callback:
+            blob = filter_callback(blob, name)
+        entry_info[name] = (blob, fmode)
+
+    for change_entry in changes_from_workingdir(names, lookup_entry,
+                                                store, index):
         (name1, name2), (mode1, mode2), (sha1, sha2) = change_entry
         content1 = b''
         content2 = b''
         if name2:
-            filepath = name2
-            if os_sep_bytes != b'/':
-                filepath = name2.replace(b'/', os_sep_bytes)
-            with open(filepath, 'rb') as d:
-                content2 = d.read()
+            if name2 in entry_info:
+                blob, fmode = entry_info[name2]
+                content2 = blob.as_raw_string()
         if name1:
             content1 = store[sha1].as_raw_string()
-
-        write_diff(f, (name1, mode1, sha1, content1),
-                      (name2, mode2, sha2, content2))
+        _write_diff(f, (name1, mode1, sha1, content1),
+                       (name2, mode2, sha2, content2))
