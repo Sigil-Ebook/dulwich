@@ -22,9 +22,27 @@
 For details for the matching rules, see https://git-scm.com/docs/gitignore
 """
 
-import os.path
+import os
 import re
-import sys
+
+# Due to Linux use of arbitrary bytes in paths
+# and the fact that one code base must work
+# on all platforms across python 2.7 and 3.x,
+# the IgnoreManager should convert to bytes
+# all non-bytes paths at the boundaries.
+# Under python 3.x, this is best done using os.fsencode
+# but os.fsencode does not exist in python 2.7
+
+
+def _convert_to_bytes(apath):
+    if apath is None:
+        return None
+    if isinstance(apath, bytes):
+        return apath
+    return apath.encode('utf-8')
+
+
+_os_sep_bytes = os.path.sep.encode('ascii')
 
 
 def _translate_segment(segment):
@@ -161,7 +179,7 @@ class Pattern(object):
         return self.pattern
 
     def __str__(self):
-        return self.pattern.decode(sys.getfilesystemencoding())
+        return self.pattern.decode('utf-8')
 
     def __eq__(self, other):
         return (type(self) == type(other) and
@@ -202,10 +220,9 @@ class IgnoreFilter(object):
         Returns:
           Iterator over  iterators
         """
-        if not isinstance(path, bytes):
-            path = path.encode(sys.getfilesystemencoding())
+        apath = _convert_to_bytes(path)
         for pattern in self._patterns:
-            if pattern.match(path):
+            if pattern.match(apath):
                 yield pattern
 
     def is_ignored(self, path):
@@ -272,7 +289,8 @@ def default_user_ignore_filter_path(config):
         pass
 
     xdg_config_home = os.environ.get("XDG_CONFIG_HOME", "~/.config/")
-    return os.path.join(xdg_config_home, 'git', 'ignore')
+    xdg_config_home = _convert_to_bytes(xdg_config_home)
+    return os.path.join(xdg_config_home, b'git', b'ignore')
 
 
 class IgnoreFilterManager(object):
@@ -280,7 +298,7 @@ class IgnoreFilterManager(object):
 
     def __init__(self, top_path, global_filters, ignorecase):
         self._path_filters = {}
-        self._top_path = top_path
+        self._top_path = _convert_to_bytes(top_path)
         self._global_filters = global_filters
         self._ignorecase = ignorecase
 
@@ -291,18 +309,19 @@ class IgnoreFilterManager(object):
             self._ignorecase)
 
     def _load_path(self, path):
+        apath = _convert_to_bytes(path)
         try:
-            return self._path_filters[path]
+            return self._path_filters[apath]
         except KeyError:
             pass
 
-        p = os.path.join(self._top_path, path, '.gitignore')
+        p = os.path.join(self._top_path, apath, b'.gitignore')
         try:
-            self._path_filters[path] = IgnoreFilter.from_path(
+            self._path_filters[apath] = IgnoreFilter.from_path(
                 p, self._ignorecase)
         except IOError:
-            self._path_filters[path] = None
-        return self._path_filters[path]
+            self._path_filters[apath] = None
+        return self._path_filters[apath]
 
     def find_matching(self, path):
         """Find matching patterns for path.
@@ -314,20 +333,21 @@ class IgnoreFilterManager(object):
         Returns:
           Iterator over Pattern instances
         """
-        if os.path.isabs(path):
-            raise ValueError('%s is an absolute path' % path)
+        apath = _convert_to_bytes(path)
+        if os.path.isabs(apath):
+            raise ValueError(b'%s is an absolute path' % apath)
         filters = [(0, f) for f in self._global_filters]
-        if os.path.sep != '/':
-            path = path.replace(os.path.sep, '/')
-        parts = path.split('/')
+        if _os_sep_bytes != b'/':
+            apath = apath.replace(_os_sep_bytes, b'/')
+        parts = apath.split(b'/')
         for i in range(len(parts)+1):
-            dirname = '/'.join(parts[:i])
+            dirname = b'/'.join(parts[:i])
             for s, f in filters:
-                relpath = '/'.join(parts[s:i])
+                relpath = b'/'.join(parts[s:i])
                 if i < len(parts):
                     # Paths leading up to the final part are all directories,
                     # so need a trailing slash.
-                    relpath += '/'
+                    relpath += b'/'
                 matches = list(f.find_matching(relpath))
                 if matches:
                     return iter(matches)
@@ -345,7 +365,7 @@ class IgnoreFilterManager(object):
           None if the file is not mentioned, True if it is included,
           False if it is explicitly excluded.
         """
-        matches = list(self.find_matching(path))
+        matches = list(self.find_matching(_convert_to_bytes(path)))
         if matches:
             return matches[-1].is_exclude
         return None
@@ -361,7 +381,8 @@ class IgnoreFilterManager(object):
         """
         global_filters = []
         for p in [
-                os.path.join(repo.controldir(), 'info', 'exclude'),
+                os.path.join(_convert_to_bytes(repo.controldir()),
+                             b'info', b'exclude'),
                 default_user_ignore_filter_path(repo.get_config_stack())]:
             try:
                 global_filters.append(

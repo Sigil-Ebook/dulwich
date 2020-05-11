@@ -400,8 +400,8 @@ def _write_diff(f, a, b):
                 + new_path
                 + b" differ\n")
     else:
-        f.writelines(unified_diff(content1.splitlines(keepends=True),
-                                  content2.splitlines(keepends=True),
+        f.writelines(unified_diff(content1.splitlines(True),
+                                  content2.splitlines(True),
                                   old_path,
                                   new_path))
 
@@ -414,7 +414,7 @@ def write_tree_workingdir_diff(f, store, tree, names,
     Args:
       f: File-like object to write to.
       tree: tree id for base of comparison
-      names: list of working directory relative file paths (bytes)
+      names: list of working directory relative file paths (bytes only)
       diff_binary: Whether to diff files even if they
         are considered binary files by is_binary().
     """

@@ -121,22 +121,19 @@ def find_octopus_base(r, commit_ids):
 def test():
 
     all_tests_passed = True
-
-    parents = {}
+    graph = {}
 
     def lookup_parents(commit_id):
-        return parents.get(commit_id, [])
+        return graph.get(commit_id, [])
 
-    def run_test(dag, inputs, expected):
-        nonlocal parents
-        parents = dag
+    def run_test(inputs, expected):
         c1 = inputs[0]
         c2s = inputs[1:]
         res = _find_lcas(lookup_parents, c1, c2s)
         return set(res) == expected
 
     # two lowest common ancestors
-    test1 = {
+    graph = {
         '5': ['1', '2'],
         '4': ['3', '1'],
         '3': ['2'],
@@ -144,24 +141,24 @@ def test():
         '1': [],
         '0': []
     }
-    test_passed = run_test(test1, ['4', '5'], set(['1', '2']))
+    test_passed = run_test(['4', '5'], set(['1', '2']))
     print('Test 1: Multiple LCA ', test_passed)
     all_tests_passed = all_tests_passed and test_passed
 
     # no common ancestor
-    test2 = {
+    graph = {
         '4': ['2'],
         '3': ['1'],
         '2': [],
         '1': ['0'],
         '0': [],
     }
-    test_passed = run_test(test2, ['4', '3'], set([]))
+    test_passed = run_test(['4', '3'], set([]))
     print('Test 2: No Common Ancestor ', test_passed)
     all_tests_passed = all_tests_passed and test_passed
 
     # ancestor
-    test3 = {
+    graph = {
         'G': ['D', 'F'],
         'F': ['E'],
         'D': ['C'],
@@ -170,12 +167,12 @@ def test():
         'B': ['A'],
         'A': []
     }
-    test_passed = run_test(test3, ['D', 'C'], set(['C']))
+    test_passed = run_test(['D', 'C'], set(['C']))
     print('Test 3: Ancestor ', test_passed)
     all_tests_passed = all_tests_passed and test_passed
 
     # parent
-    test4 = {
+    graph = {
         'G': ['D', 'F'],
         'F': ['E'],
         'D': ['C'],
@@ -184,12 +181,12 @@ def test():
         'B': ['A'],
         'A': []
     }
-    test_passed = run_test(test4, ['G', 'D'], set(['D']))
+    test_passed = run_test(['G', 'D'], set(['D']))
     print('Test 4: Direct Parent ', test_passed)
     all_tests_passed = all_tests_passed and test_passed
 
     # Another cross over
-    test5 = {
+    graph = {
         'G': ['D', 'F'],
         'F': ['E', 'C'],
         'D': ['C', 'E'],
@@ -198,12 +195,12 @@ def test():
         'B': ['A'],
         'A': []
     }
-    test_passed = run_test(test5, ['D', 'F'], set(['E', 'C']))
+    test_passed = run_test(['D', 'F'], set(['E', 'C']))
     print('Test 5: Cross Over ', test_passed)
     all_tests_passed = all_tests_passed and test_passed
 
     # three way merge commit straight from git docs
-    test6 = {
+    graph = {
         'C': ['C1'],
         'C1': ['C2'],
         'C2': ['C3'],
@@ -222,14 +219,14 @@ def test():
     }
     # assumes a theoretical merge M exists that merges B and C first
     # which actually means find the first LCA from either of B OR C with A
-    test_passed = run_test(test6, ['A', 'B', 'C'], set(['1']))
+    test_passed = run_test(['A', 'B', 'C'], set(['1']))
     all_tests_passed = all_tests_passed and test_passed
     print('Test 6: LCA of 3 commits ', test_passed)
 
     # octopus algorithm test
     # test straight from git docs of A, B, and C
     # but this time use octopus to find lcas of A, B, and C simultaneously
-    test7 = {
+    graph = {
         'C': ['C1'],
         'C1': ['C2'],
         'C2': ['C3'],
@@ -246,7 +243,6 @@ def test():
         '1': ['2'],
         '2': [],
     }
-    parents = test7
     lcas = ['A']
     others = ['B', 'C']
     for cmt in others:

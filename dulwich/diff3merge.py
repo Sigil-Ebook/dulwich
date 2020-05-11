@@ -15,11 +15,24 @@ Implementation of a diff3 approach to perform a 3-way merge
 #
 # Available under the MIT License
 
-import sys
-# import os
+from __future__ import absolute_import, print_function
 
-from difflib import diff_bytes, ndiff
+import sys
 from .myersdiff import myers_diff
+
+_PY3 = sys.version_info[0] >= 3
+
+
+def PY2_diff_bytes(dofcn, olines, dlines,
+                   name1, name2, fill1, fill2, n, lineterm):
+    return ndiff(olines, dlines, linejunk=None, charjunk=None)
+
+
+if _PY3:
+    from difflib import diff_bytes, ndiff
+else:
+    from difflib import ndiff
+    diff_bytes = PY2_diff_bytes
 
 
 def do_file_merge_myers(alice, bob, ancestor):
@@ -38,7 +51,10 @@ def do_file_merge_myers(alice, bob, ancestor):
     mrg3 = Merge3Way(ancestor, alice, bob, "myers")
     res = mrg3.merge()
     conflicts = mrg3.get_conflicts()
+    print(res.decode('utf-8'), end='')
+    print(conflicts)
     return (res, conflicts)
+
 
 def do_file_merge_ndiff(alice, bob, ancestor):
     """Merge alice and bob based on their common ancestor
@@ -55,7 +71,9 @@ def do_file_merge_ndiff(alice, bob, ancestor):
     mrg3 = Merge3Way(ancestor, alice, bob, "ndiff")
     res = mrg3.merge()
     conflicts = mrg3.get_conflicts()
-    return (res, cconflicts)
+    print(res.decode('utf-8'), end='')
+    print(conflicts)
+    return (res, conflicts)
 
 
 class Merge3Way(object):
@@ -76,9 +94,9 @@ class Merge3Way(object):
         self.o_file = b'ancestor'
         self.a_file = b'alice'
         self.b_file = b'bob'
-        self.o_lines = ancestor.splitlines(keepends=True)
-        self.a_lines = alice.splitlines(keepends=True)
-        self.b_lines = bob.splitlines(keepends=True)
+        self.o_lines = ancestor.splitlines(True)
+        self.a_lines = alice.splitlines(True)
+        self.b_lines = bob.splitlines(True)
         self.conflicts = []
         if diff_type in ('myers', 'Myers', 'MYERS',
                          b'myers', b'Myers', b'MYERS'):
@@ -281,7 +299,10 @@ def main():
         alice = af.read()
     with open(bfile, 'rb') as bf:
         bob = bf.read()
-    res = do_file_merge(alice, bob, ancestor, dtype)
+    if dtype == "myers":
+        res = do_file_merge_myers(alice, bob, ancestor)
+    else:
+        res = do_file_merge_ndiff(alice, bob, ancestor)
     print(res.decode('utf-8'), end='')
     return 0
 
