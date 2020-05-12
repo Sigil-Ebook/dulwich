@@ -44,6 +44,8 @@ def _convert_to_bytes(apath):
 
 _os_sep_bytes = os.path.sep.encode('ascii')
 
+from dulwich.config import get_xdg_config_home_path
+
 
 def _translate_segment(segment):
     if segment == b"*":
@@ -288,9 +290,7 @@ def default_user_ignore_filter_path(config):
     except KeyError:
         pass
 
-    xdg_config_home = os.environ.get("XDG_CONFIG_HOME", "~/.config/")
-    xdg_config_home = _convert_to_bytes(xdg_config_home)
-    return os.path.join(xdg_config_home, b'git', b'ignore')
+    return _convert_to_bytes(get_xdg_config_home_path('git', 'ignore'))
 
 
 class IgnoreFilterManager(object):

@@ -20,6 +20,7 @@
 
 from io import BytesIO
 import base64
+import os
 import sys
 import shutil
 import tempfile
@@ -57,6 +58,7 @@ from dulwich.client import (
     UpdateRefsError,
     check_wants,
     default_urllib3_manager,
+    get_credentials_from_store,
     get_transport_and_path,
     get_transport_and_path_from_url,
     parse_rsync_url,
@@ -1070,6 +1072,15 @@ class DefaultUrllib3ManagerTest(TestCase):
     def test_config_no_proxy(self):
         manager = default_urllib3_manager(config=ConfigDict())
         self.assertNotIsInstance(manager, urllib3.ProxyManager)
+        self.assertIsInstance(manager, urllib3.PoolManager)
+
+    def test_config_no_proxy_custom_cls(self):
+        class CustomPoolManager(urllib3.PoolManager):
+            pass
+
+        manager = default_urllib3_manager(config=ConfigDict(),
+                                          pool_manager_cls=CustomPoolManager)
+        self.assertIsInstance(manager, CustomPoolManager)
 
     def test_config_ssl(self):
         config = ConfigDict()
@@ -1095,6 +1106,16 @@ class DefaultUrllib3ManagerTest(TestCase):
         self.assertEqual(manager.proxy.scheme, 'http')
         self.assertEqual(manager.proxy.host, 'localhost')
         self.assertEqual(manager.proxy.port, 3128)
+
+    def test_config_proxy_custom_cls(self):
+        class CustomProxyManager(urllib3.ProxyManager):
+            pass
+
+        config = ConfigDict()
+        config.set(b'http', b'proxy', b'http://localhost:3128/')
+        manager = default_urllib3_manager(config=config,
+                                          proxy_manager_cls=CustomProxyManager)
+        self.assertIsInstance(manager, CustomProxyManager)
 
     def test_config_no_verify_ssl(self):
         manager = default_urllib3_manager(config=None, cert_reqs="CERT_NONE")
@@ -1293,3 +1314,46 @@ class FetchPackResultTests(TestCase):
                 {b'refs/heads/master':
                  b'2f3dc7a53fb752a6961d3a56683df46d4d3bf262'}, {},
                 b'user/agent'))
+
+
+class GitCredentialStoreTests(TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            f.write(b'https://user:pass@example.org')
+        cls.fname = f.name
+
+    @classmethod
+    def tearDownClass(cls):
+        os.unlink(cls.fname)
+
+    def test_nonmatching_scheme(self):
+        self.assertEqual(
+            get_credentials_from_store(
+                b'http', b'example.org', fnames=[self.fname]),
+            None)
+
+    def test_nonmatching_hostname(self):
+        self.assertEqual(
+            get_credentials_from_store(
+                b'https', b'noentry.org', fnames=[self.fname]),
+            None)
+
+    def test_match_without_username(self):
+        self.assertEqual(
+            get_credentials_from_store(
+                b'https', b'example.org', fnames=[self.fname]),
+            (b'user', b'pass'))
+
+    def test_match_with_matching_username(self):
+        self.assertEqual(
+            get_credentials_from_store(
+                b'https', b'example.org', b'user', fnames=[self.fname]),
+            (b'user', b'pass'))
+
+    def test_no_match_with_nonmatching_username(self):
+        self.assertEqual(
+            get_credentials_from_store(
+                b'https', b'example.org', b'otheruser', fnames=[self.fname]),
+            None)
