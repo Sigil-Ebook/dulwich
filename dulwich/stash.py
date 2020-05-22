@@ -20,8 +20,6 @@
 
 """Stash handling."""
 
-from __future__ import absolute_import
-
 import os
 
 from dulwich.file import GitFile

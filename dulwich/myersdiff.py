@@ -4,7 +4,6 @@
 """
 Implementation of a Myers Optimal Diff In Python3
 """
-from __future__ import print_function
 
 # Implementation of a Myers Optimal Diff In Python3
 # Copyright (c) 2020 Kevin B. Hendricks, Stratford Ontario Canada

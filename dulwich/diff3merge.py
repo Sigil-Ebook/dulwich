@@ -15,24 +15,9 @@ Implementation of a diff3 approach to perform a 3-way merge
 #
 # Available under the MIT License
 
-from __future__ import absolute_import, print_function
-
 import sys
 from dulwich.myersdiff import myers_diff
-
-_PY3 = sys.version_info[0] >= 3
-
-
-def PY2_diff_bytes(dofcn, olines, dlines,
-                   name1, name2, fill1, fill2, n, lineterm):
-    return ndiff(olines, dlines, linejunk=None, charjunk=None)
-
-
-if _PY3:
-    from difflib import diff_bytes, ndiff
-else:
-    from difflib import ndiff
-    diff_bytes = PY2_diff_bytes
+from difflib import diff_bytes, ndiff
 
 
 def do_file_merge_myers(alice, bob, ancestor):
