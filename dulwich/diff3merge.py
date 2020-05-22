@@ -18,7 +18,7 @@ Implementation of a diff3 approach to perform a 3-way merge
 from __future__ import absolute_import, print_function
 
 import sys
-from .myersdiff import myers_diff
+from dulwich.myersdiff import myers_diff
 
 _PY3 = sys.version_info[0] >= 3
 
@@ -42,17 +42,13 @@ def do_file_merge_myers(alice, bob, ancestor):
            alice     - bytestring contents of a file to merge
            bob       - bytestring contents of another file to merge
            ancestor  - bytestring contents of ancestor common to alice and bob
-           diff_type - 'myers' or 'ndiff' diff implementation to use
-                       default is 'myers'
        Returns:
            tuple of bytestring result of merge of alice with bob and
-           list of any conflicts
+           list of any conflict ranges
     """
     mrg3 = Merge3Way(ancestor, alice, bob, "myers")
     res = mrg3.merge()
     conflicts = mrg3.get_conflicts()
-    print(res.decode('utf-8'), end='')
-    print(conflicts)
     return (res, conflicts)
 
 
@@ -63,16 +59,13 @@ def do_file_merge_ndiff(alice, bob, ancestor):
            alice     - bytestring contents of a file to merge
            bob       - bytestring contents of another file to merge
            ancestor  - bytestring contents of ancestor common to alice and bob
-           diff_type - 'myers' or 'ndiff' diff implementation to use
-                       default is 'myers'
        Returns:
-           bytestring result of merge of alice with bob with conflicts marked
+           tuple of bytestring result of merge of alice with bob and
+           list of any conflict ranges
     """
     mrg3 = Merge3Way(ancestor, alice, bob, "ndiff")
     res = mrg3.merge()
     conflicts = mrg3.get_conflicts()
-    print(res.decode('utf-8'), end='')
-    print(conflicts)
     return (res, conflicts)
 
 
@@ -289,6 +282,7 @@ def main():
     argv = sys.argv
     if len(argv) < 5:
         print("diff3merge ancestor_path alice_path bob_path myers|ndiff")
+        return 0
     ofile = argv[1]
     afile = argv[2]
     bfile = argv[3]
@@ -300,10 +294,11 @@ def main():
     with open(bfile, 'rb') as bf:
         bob = bf.read()
     if dtype == "myers":
-        res = do_file_merge_myers(alice, bob, ancestor)
+        res, conflicts = do_file_merge_myers(alice, bob, ancestor)
     else:
-        res = do_file_merge_ndiff(alice, bob, ancestor)
+        res, conflicts = do_file_merge_ndiff(alice, bob, ancestor)
     print(res.decode('utf-8'), end='')
+    print(conflicts)
     return 0
 
 
