@@ -20,12 +20,7 @@
 
 """Tests for dulwich.porcelain."""
 
-from io import BytesIO
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
-import errno
+from io import BytesIO, StringIO
 import os
 import shutil
 import tarfile
@@ -143,9 +138,8 @@ class CleanTests(PorcelainTestCase):
             parent_dir = os.path.dirname(abs_path)
             try:
                 os.makedirs(parent_dir)
-            except OSError as err:
-                if not err.errno == errno.EEXIST:
-                    raise err
+            except FileExistsError:
+                pass
             with open(abs_path, 'w') as f:
                 f.write('')
 
@@ -1291,7 +1285,7 @@ class ReceivePackTests(PorcelainTestCase):
             b'0091319b56ce3aee2d489f759736a79cc552c9bb86d9 HEAD\x00 report-status '  # noqa: E501
             b'delete-refs quiet ofs-delta side-band-64k '
             b'no-done symref=HEAD:refs/heads/master',
-           b'003f319b56ce3aee2d489f759736a79cc552c9bb86d9 refs/heads/master',
+            b'003f319b56ce3aee2d489f759736a79cc552c9bb86d9 refs/heads/master',
             b'0000'], outlines)
         self.assertEqual(0, exitcode)
 

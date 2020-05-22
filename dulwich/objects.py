@@ -27,7 +27,12 @@ from collections import namedtuple
 import os
 import posixpath
 import stat
-import sys
+from typing import (
+    Optional,
+    Dict,
+    Union,
+    Type,
+    )
 import warnings
 import zlib
 from hashlib import sha1
@@ -72,7 +77,6 @@ BEGIN_PGP_SIGNATURE = b"-----BEGIN PGP SIGNATURE-----"
 
 class EmptyFileException(FileFormatException):
     """An unexpectedly empty file was encountered."""
-
 
 
 def S_ISGITLINK(m):
@@ -147,13 +151,13 @@ def filename_to_hex(filename):
     return hex
 
 
-def object_header(num_type, length):
+def object_header(num_type: int, length: int) -> bytes:
     """Return an object header for the given numeric type and text length."""
     return (object_class(num_type).type_name +
             b' ' + str(length).encode('ascii') + b'\0')
 
 
-def serializable_property(name, docstring=None):
+def serializable_property(name: str, docstring: Optional[str] = None):
     """A property that helps tracking whether serialization is necessary.
     """
     def set(obj, value):
@@ -254,6 +258,9 @@ class ShaFile(object):
 
     __slots__ = ('_chunked_text', '_sha', '_needs_serialization')
 
+    type_name: bytes
+    type_num: int
+
     @staticmethod
     def _parse_legacy_object_header(magic, f):
         """Parse a legacy object, creating it but not reading the file."""
@@ -322,14 +329,9 @@ class ShaFile(object):
         """
         return b''.join(self.as_raw_chunks())
 
-    if sys.version_info[0] >= 3:
-        def __bytes__(self):
-            """Return raw string serialization of this object."""
-            return self.as_raw_string()
-    else:
-        def __str__(self):
-            """Return raw string serialization of this object."""
-            return self.as_raw_string()
+    def __bytes__(self):
+        """Return raw string serialization of this object."""
+        return self.as_raw_string()
 
     def __hash__(self):
         """Return unique hash for this object."""
@@ -592,7 +594,7 @@ class Blob(ShaFile):
         self.set_raw_string(data)
 
     data = property(_get_data, _set_data,
-                    "The text contained within the blob object.")
+                    doc="The text contained within the blob object.")
 
     def _get_chunked(self):
         return self._chunked_text
@@ -608,7 +610,7 @@ class Blob(ShaFile):
 
     chunked = property(
         _get_chunked, _set_chunked,
-        "The text within the blob object, as chunks (not necessarily lines).")
+        doc="The text in the blob object, as chunks (not necessarily lines)")
 
     @classmethod
     def from_path(cls, path):
@@ -1423,7 +1425,7 @@ OBJECT_CLASSES = (
     Tag,
     )
 
-_TYPE_MAP = {}
+_TYPE_MAP: Dict[Union[bytes, int], Type[ShaFile]] = {}
 
 for cls in OBJECT_CLASSES:
     _TYPE_MAP[cls.type_name] = cls
@@ -1435,6 +1437,6 @@ _parse_tree_py = parse_tree
 _sorted_tree_items_py = sorted_tree_items
 try:
     # Try to import C versions
-    from dulwich._objects import parse_tree, sorted_tree_items
+    from dulwich._objects import parse_tree, sorted_tree_items  # type: ignore
 except ImportError:
     pass

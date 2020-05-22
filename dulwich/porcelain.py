@@ -167,14 +167,10 @@ class NoneStream(RawIOBase):
         return None
 
 
-if sys.version_info[0] == 2:
-    default_bytes_out_stream = sys.stdout or NoneStream()
-    default_bytes_err_stream = sys.stderr or NoneStream()
-else:
-    default_bytes_out_stream = (
-        getattr(sys.stdout, 'buffer', None) or NoneStream())
-    default_bytes_err_stream = (
-        getattr(sys.stderr, 'buffer', None) or NoneStream())
+default_bytes_out_stream = (
+    getattr(sys.stdout, 'buffer', None) or NoneStream())
+default_bytes_err_stream = (
+    getattr(sys.stderr, 'buffer', None) or NoneStream())
 
 
 DEFAULT_ENCODING = 'utf-8'
@@ -217,9 +213,9 @@ def path_to_tree_path(repopath, path):
     Returns: A path formatted for use in e.g. an index
     """
     if not isinstance(path, bytes):
-        path = path.encode(sys.getfilesystemencoding())
+        path = os.fsencode(path)
     if not isinstance(repopath, bytes):
-        repopath = repopath.encode(sys.getfilesystemencoding())
+        repopath = os.fsencode(repopath)
     treepath = os.path.relpath(path, repopath)
     if treepath.startswith(b'..'):
         raise ValueError('Path not in repo')
@@ -498,7 +494,7 @@ def remove(repo=".", paths=None, cached=False):
     with open_repo_closing(repo) as r:
         index = r.open_index()
         for p in paths:
-            full_path = os.path.abspath(p).encode(sys.getfilesystemencoding())
+            full_path = os.fsencode(os.path.abspath(p))
             tree_path = path_to_tree_path(r.path, p)
             try:
                 index_sha = index[tree_path].sha
@@ -719,7 +715,7 @@ def log(repo=".", paths=None, outstream=sys.stdout, max_entries=None,
             print_commit(entry.commit, decode, outstream)
             if name_status:
                 outstream.writelines(
-                    [l+'\n' for l in print_name_status(entry.changes())])
+                    [line+'\n' for line in print_name_status(entry.changes())])
 
 
 # TODO(jelmer): better default for encoding?
@@ -1485,12 +1481,9 @@ def check_mailmap(repo, contact):
     """
     with open_repo_closing(repo) as r:
         from dulwich.mailmap import Mailmap
-        import errno
         try:
             mailmap = Mailmap.from_path(os.path.join(r.path, '.mailmap'))
-        except IOError as e:
-            if e.errno != errno.ENOENT:
-                raise
+        except FileNotFoundError:
             mailmap = Mailmap()
         return mailmap.lookup(contact)
 

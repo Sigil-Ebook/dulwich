@@ -31,21 +31,10 @@ import sys
 import tarfile
 import tempfile
 import threading
-import unittest
 
-try:
-    from urlparse import unquote
-except ImportError:
-    from urllib.parse import unquote
+from urllib.parse import unquote
 
-
-try:
-    import BaseHTTPServer
-    import SimpleHTTPServer
-except ImportError:
-    import http.server
-    BaseHTTPServer = http.server
-    SimpleHTTPServer = http.server
+import http.server
 
 from dulwich import (
     client,
@@ -143,7 +132,7 @@ class DulwichClientTestBase(object):
                 local.refs.set_if_equals(r[0], None, r[1])
             tree_id = local[local.head()].tree
             for filename, contents in [('bar', 'bar contents'),
-                                   ('zop', 'zop contents')]:
+                                       ('zop', 'zop contents')]:
                 tree_id = self._add_file(local, tree_id, filename, contents)
                 commit_id = local.do_commit(
                     message=b"add " + filename.encode('utf-8'),
@@ -437,7 +426,7 @@ class DulwichSubprocessClientTest(CompatTestCase, DulwichClientTestBase):
         return self.gitroot + path
 
 
-class GitHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
+class GitHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     """HTTP Request handler that calls out to 'git http-backend'."""
 
     # Make rfile unbuffered -- we need to read one line and then pass
@@ -564,12 +553,12 @@ class GitHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         self.wfile.write(stdout)
 
 
-class HTTPGitServer(BaseHTTPServer.HTTPServer):
+class HTTPGitServer(http.server.HTTPServer):
 
     allow_reuse_address = True
 
     def __init__(self, server_address, root_path):
-        BaseHTTPServer.HTTPServer.__init__(
+        http.server.HTTPServer.__init__(
             self, server_address, GitHTTPRequestHandler)
         self.root_path = root_path
         self.server_name = "localhost"

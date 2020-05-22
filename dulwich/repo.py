@@ -29,7 +29,6 @@ local disk (Repo).
 """
 
 from io import BytesIO
-import errno
 import os
 import sys
 import stat
@@ -212,8 +211,8 @@ def parse_graftpoints(graftpoints):
     https://git.wiki.kernel.org/index.php/GraftPoint
     """
     grafts = {}
-    for l in graftpoints:
-        raw_graft = l.split(None, 1)
+    for line in graftpoints:
+        raw_graft = line.split(None, 1)
 
         commit = raw_graft[0]
         if len(raw_graft) == 2:
@@ -264,7 +263,7 @@ def _set_filesystem_hidden(path):
             ("SetFileAttributesW", ctypes.windll.kernel32))
 
         if isinstance(path, bytes):
-            path = path.decode(sys.getfilesystemencoding())
+            path = os.fsdecode(path)
         if not SetFileAttributesW(path, FILE_ATTRIBUTE_HIDDEN):
             pass  # Could raise or log `ctypes.WinError()` here
 
@@ -605,7 +604,7 @@ class BaseRepo(object):
         if f is None:
             return set()
         with f:
-            return set(l.strip() for l in f)
+            return set(line.strip() for line in f)
 
     def update_shallow(self, new_shallow, new_unshallow):
         """Update the list of shallow objects.
@@ -769,7 +768,7 @@ class BaseRepo(object):
         if f is None:
             return []
         with f:
-            return [l.strip() for l in f.readlines() if l.strip()]
+            return [line.strip() for line in f.readlines() if line.strip()]
 
     def do_commit(self, message=None, committer=None,
                   author=None, commit_timestamp=None,
@@ -943,8 +942,7 @@ class Repo(BaseRepo):
             with commondir:
                 self._commondir = os.path.join(
                     self.controldir(),
-                    commondir.read().rstrip(b"\r\n").decode(
-                        sys.getfilesystemencoding()))
+                    os.fsdecode(commondir.read().rstrip(b"\r\n")))
         else:
             self._commondir = self._controldir
         self.path = root
@@ -976,14 +974,11 @@ class Repo(BaseRepo):
     def _write_reflog(self, ref, old_sha, new_sha, committer, timestamp,
                       timezone, message):
         from .reflog import format_reflog_line
-        path = os.path.join(
-                self.controldir(), 'logs',
-                ref.decode(sys.getfilesystemencoding()))
+        path = os.path.join(self.controldir(), 'logs', os.fsdecode(ref))
         try:
             os.makedirs(os.path.dirname(path))
-        except OSError as e:
-            if e.errno != errno.EEXIST:
-                raise
+        except FileExistsError:
+            pass
         if committer is None:
             config = self.get_config_stack()
             committer = self._get_user_identity(config)
@@ -1043,10 +1038,8 @@ class Repo(BaseRepo):
         st1 = os.lstat(fname)
         try:
             os.chmod(fname, st1.st_mode ^ stat.S_IXUSR)
-        except EnvironmentError as e:
-            if e.errno == errno.EPERM:
-                return False
-            raise
+        except PermissionError:
+            return False
         st2 = os.lstat(fname)
 
         os.unlink(fname)
@@ -1070,10 +1063,8 @@ class Repo(BaseRepo):
     def _del_named_file(self, path):
         try:
             os.unlink(os.path.join(self.controldir(), path))
-        except (IOError, OSError) as e:
-            if e.errno == errno.ENOENT:
-                return
-            raise
+        except FileNotFoundError:
+            return
 
     def get_named_file(self, path, basedir=None):
         """Get a file from the control dir with a specific name.
@@ -1095,10 +1086,8 @@ class Repo(BaseRepo):
         path = path.lstrip(os.path.sep)
         try:
             return open(os.path.join(basedir, path), 'rb')
-        except (IOError, OSError) as e:
-            if e.errno == errno.ENOENT:
-                return None
-            raise
+        except FileNotFoundError:
+            return None
 
     def index_path(self):
         """Return path to the index file."""
@@ -1129,7 +1118,7 @@ class Repo(BaseRepo):
           fs_paths: List of paths, relative to the repository path
         """
 
-        root_path_bytes = self.path.encode(sys.getfilesystemencoding())
+        root_path_bytes = os.fsencode(self.path)
 
         if not isinstance(fs_paths, list):
             fs_paths = [fs_paths]
@@ -1142,7 +1131,7 @@ class Repo(BaseRepo):
         blob_normalizer = self.get_blob_normalizer()
         for fs_path in fs_paths:
             if not isinstance(fs_path, bytes):
-                fs_path = fs_path.encode(sys.getfilesystemencoding())
+                fs_path = os.fsencode(fs_path)
             if os.path.isabs(fs_path):
                 raise ValueError(
                     "path %r should be relative to "
@@ -1192,7 +1181,7 @@ class Repo(BaseRepo):
         self.fetch(target)
         encoded_path = self.path
         if not isinstance(encoded_path, bytes):
-            encoded_path = encoded_path.encode(sys.getfilesystemencoding())
+            encoded_path = os.fsencode(encoded_path)
         ref_message = b"clone: from " + encoded_path
         target.refs.import_refs(
             b'refs/remotes/' + origin, self.refs.as_dict(b'refs/heads'),
@@ -1261,9 +1250,7 @@ class Repo(BaseRepo):
         path = os.path.join(self._controldir, 'config')
         try:
             return ConfigFile.from_path(path)
-        except (IOError, OSError) as e:
-            if e.errno != errno.ENOENT:
-                raise
+        except FileNotFoundError:
             ret = ConfigFile()
             ret.path = path
             return ret
@@ -1277,9 +1264,7 @@ class Repo(BaseRepo):
         try:
             with GitFile(path, 'rb') as f:
                 return f.read()
-        except (IOError, OSError) as e:
-            if e.errno != errno.ENOENT:
-                raise
+        except FileNotFoundError:
             return None
 
     def __repr__(self):
@@ -1341,21 +1326,17 @@ class Repo(BaseRepo):
         worktree_controldir = os.path.join(main_worktreesdir, identifier)
         gitdirfile = os.path.join(path, CONTROLDIR)
         with open(gitdirfile, 'wb') as f:
-            f.write(b'gitdir: ' +
-                    worktree_controldir.encode(sys.getfilesystemencoding()) +
-                    b'\n')
+            f.write(b'gitdir: ' + os.fsencode(worktree_controldir) + b'\n')
         try:
             os.mkdir(main_worktreesdir)
-        except OSError as e:
-            if e.errno != errno.EEXIST:
-                raise
+        except FileExistsError:
+            pass
         try:
             os.mkdir(worktree_controldir)
-        except OSError as e:
-            if e.errno != errno.EEXIST:
-                raise
+        except FileExistsError:
+            pass
         with open(os.path.join(worktree_controldir, GITDIR), 'wb') as f:
-            f.write(gitdirfile.encode(sys.getfilesystemencoding()) + b'\n')
+            f.write(os.fsencode(gitdirfile) + b'\n')
         with open(os.path.join(worktree_controldir, COMMONDIR), 'wb') as f:
             f.write(b'../..\n')
         with open(os.path.join(worktree_controldir, 'HEAD'), 'wb') as f:

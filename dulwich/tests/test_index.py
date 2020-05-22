@@ -82,7 +82,7 @@ def can_symlink():
     test_target = test_source + 'can_symlink'
     try:
         os.symlink(test_source, test_target)
-    except OSError:
+    except (NotImplementedError, OSError):
         return False
     return True
 
@@ -501,7 +501,7 @@ class BuildIndexTests(TestCase):
 
     def test_no_decode_encode(self):
         repo_dir = tempfile.mkdtemp()
-        repo_dir_bytes = repo_dir.encode(sys.getfilesystemencoding())
+        repo_dir_bytes = os.fsencode(repo_dir)
         self.addCleanup(shutil.rmtree, repo_dir)
         with Repo.init(repo_dir) as repo:
 

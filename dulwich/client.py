@@ -40,24 +40,20 @@ Known capabilities that are not supported:
 
 from contextlib import closing
 from io import BytesIO, BufferedReader
-import errno
 import os
 import select
 import socket
 import subprocess
 import sys
 
-try:
-    from urllib import quote as urlquote
-    from urllib import unquote as urlunquote
-except ImportError:
-    from urllib.parse import quote as urlquote
-    from urllib.parse import unquote as urlunquote
-
-try:
-    import urlparse
-except ImportError:
-    import urllib.parse as urlparse
+from urllib.parse import (
+    quote as urlquote,
+    unquote as urlunquote,
+    urlparse,
+    urljoin,
+    urlunsplit,
+    urlunparse,
+    )
 
 import dulwich
 from dulwich.config import get_xdg_config_home_path
@@ -357,7 +353,7 @@ class GitClient(object):
         """Create an instance of this client from a urlparse.parsed object.
 
         Args:
-          parsedurl: Result of urlparse.urlparse()
+          parsedurl: Result of urlparse()
 
         Returns:
           A `GitClient` object
@@ -743,11 +739,11 @@ def check_wants(wants, refs):
 def remote_error_from_stderr(stderr):
     if stderr is None:
         return HangupException()
-    for l in stderr.readlines():
-        if l.startswith(b'ERROR: '):
+    for line in stderr.readlines():
+        if line.startswith(b'ERROR: '):
             return GitProtocolError(
-                l[len(b'ERROR: '):].decode('utf-8', 'replace'))
-        return GitProtocolError(l.decode('utf-8', 'replace'))
+                line[len(b'ERROR: '):].decode('utf-8', 'replace'))
+        return GitProtocolError(line.decode('utf-8', 'replace'))
     return HangupException()
 
 
@@ -976,7 +972,7 @@ class TCPGitClient(TraditionalGitClient):
         netloc = self._host
         if self._port is not None and self._port != TCP_GIT_PORT:
             netloc += ":%d" % self._port
-        return urlparse.urlunsplit(("git", netloc, path, '', ''))
+        return urlunsplit(("git", netloc, path, '', ''))
 
     def _connect(self, cmd, path):
         if not isinstance(cmd, bytes):
@@ -1025,10 +1021,7 @@ class SubprocessWrapper(object):
 
     def __init__(self, proc):
         self.proc = proc
-        if sys.version_info[0] == 2:
-            self.read = proc.stdout.read
-        else:
-            self.read = BufferedReader(proc.stdout).read
+        self.read = BufferedReader(proc.stdout).read
         self.write = proc.stdin.write
 
     @property
@@ -1106,7 +1099,7 @@ class LocalGitClient(GitClient):
         # Ignore the thin_packs argument
 
     def get_url(self, path):
-        return urlparse.urlunsplit(('file', '', path, '', ''))
+        return urlunsplit(('file', '', path, '', ''))
 
     @classmethod
     def from_parsedurl(cls, parsedurl, **kwargs):
@@ -1116,7 +1109,7 @@ class LocalGitClient(GitClient):
     def _open_repo(cls, path):
         from dulwich.repo import Repo
         if not isinstance(path, str):
-            path = path.decode(sys.getfilesystemencoding())
+            path = os.fsdecode(path)
         return closing(Repo(path))
 
     def send_pack(self, path, update_refs, generate_pack_data,
@@ -1390,7 +1383,7 @@ class SSHGitClient(TraditionalGitClient):
         if self.username is not None:
             netloc = urlquote(self.username, '@/:') + "@" + netloc
 
-        return urlparse.urlunsplit(('ssh', netloc, path, '', ''))
+        return urlunsplit(('ssh', netloc, path, '', ''))
 
     @classmethod
     def from_parsedurl(cls, parsedurl, **kwargs):
@@ -1556,7 +1549,7 @@ class HttpGitClient(GitClient):
         if parsedurl.username:
             netloc = "%s@%s" % (parsedurl.username, netloc)
         parsedurl = parsedurl._replace(netloc=netloc)
-        return cls(urlparse.urlunparse(parsedurl), **kwargs)
+        return cls(urlunparse(parsedurl), **kwargs)
 
     def __repr__(self):
         return "%s(%r, dumb=%r)" % (
@@ -1567,7 +1560,7 @@ class HttpGitClient(GitClient):
             # urllib3.util.url._encode_invalid_chars() converts the path back
             # to bytes using the utf-8 codec.
             path = path.decode('utf-8')
-        return urlparse.urljoin(self._base_url, path).rstrip("/") + "/"
+        return urljoin(self._base_url, path).rstrip("/") + "/"
 
     def _http_request(self, url, headers=None, data=None,
                       allow_compression=False):
@@ -1631,7 +1624,7 @@ class HttpGitClient(GitClient):
         headers = {"Accept": "*/*"}
         if self.dumb is not True:
             tail += "?service=%s" % service.decode('ascii')
-        url = urlparse.urljoin(base_url, tail)
+        url = urljoin(base_url, tail)
         resp, read = self._http_request(url, headers, allow_compression=True)
 
         if resp.redirect_location:
@@ -1663,7 +1656,7 @@ class HttpGitClient(GitClient):
 
     def _smart_request(self, service, url, data):
         assert url[-1] == "/"
-        url = urlparse.urljoin(url, service)
+        url = urljoin(url, service)
         result_content_type = "application/x-%s-result" % service
         headers = {
             "Content-Type": "application/x-%s-request" % service,
@@ -1808,7 +1801,7 @@ def get_transport_and_path_from_url(url, config=None, **kwargs):
       Tuple with client instance and relative path.
 
     """
-    parsed = urlparse.urlparse(url)
+    parsed = urlparse(url)
     if parsed.scheme == 'git':
         return (TCPGitClient.from_parsedurl(parsed, **kwargs),
                 parsed.path)
@@ -1882,20 +1875,19 @@ DEFAULT_GIT_CREDENTIALS_PATHS = [
     os.path.expanduser('~/.git-credentials'),
     get_xdg_config_home_path('git', 'credentials')]
 
+
 def get_credentials_from_store(scheme, hostname, username=None,
                                fnames=DEFAULT_GIT_CREDENTIALS_PATHS):
     for fname in fnames:
         try:
             with open(fname, 'rb') as f:
                 for line in f:
-                    parsed_line = urlparse.urlparse(line)
+                    parsed_line = urlparse(line)
                     if (parsed_line.scheme == scheme and
                             parsed_line.hostname == hostname and
                             (username is None or
                                 parsed_line.username == username)):
                         return parsed_line.username, parsed_line.password
-        except OSError as e:
-            if e.errno != errno.ENOENT:
-                raise
+        except FileNotFoundError:
             # If the file doesn't exist, try the next one.
             continue

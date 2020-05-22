@@ -36,10 +36,7 @@ from wsgiref.simple_server import (
     make_server,
     )
 
-try:
-    from urlparse import parse_qs
-except ImportError:
-    from urllib.parse import parse_qs
+from urllib.parse import parse_qs
 
 
 from dulwich import log_utils
@@ -443,11 +440,8 @@ class ServerHandlerLogger(ServerHandler):
     """ServerHandler that uses dulwich's logger for logging exceptions."""
 
     def log_exception(self, exc_info):
-        if sys.version_info < (2, 7):
-            logger.exception('Exception happened during processing of request')
-        else:
-            logger.exception('Exception happened during processing of request',
-                             exc_info=exc_info)
+        logger.exception('Exception happened during processing of request',
+                         exc_info=exc_info)
 
     def log_message(self, format, *args):
         logger.info(format, *args)
