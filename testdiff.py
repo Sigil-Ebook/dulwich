@@ -6,8 +6,8 @@ import sys
 import os
 from dulwich import porcelain
 
+
 def main():
-    acwd = os.getcwd()
     os.chdir("test1")
     # print(porcelain.branch_list("."))
 
