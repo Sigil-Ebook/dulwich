@@ -272,7 +272,7 @@ def default_user_ignore_filter_path(config):
     except KeyError:
         pass
 
-    return os.fsencode(get_xdg_config_home_path('git', 'ignore'))
+    return get_xdg_config_home_path('git', 'ignore')
 
 
 class IgnoreFilterManager(object):
@@ -280,7 +280,7 @@ class IgnoreFilterManager(object):
 
     def __init__(self, top_path, global_filters, ignorecase):
         self._path_filters = {}
-        self._top_path = os.fsencode(top_path)
+        self._top_path = top_path
         self._global_filters = global_filters
         self._ignorecase = ignorecase
 
@@ -296,7 +296,7 @@ class IgnoreFilterManager(object):
         except KeyError:
             pass
 
-        p = os.path.join(self._top_path, path, b'.gitignore')
+        p = os.path.join(self._top_path, path, '.gitignore')
         try:
             self._path_filters[path] = IgnoreFilter.from_path(
                 p, self._ignorecase)
@@ -314,21 +314,20 @@ class IgnoreFilterManager(object):
         Returns:
           Iterator over Pattern instances
         """
-        path = os.fsencode(path)
         if os.path.isabs(path):
             raise ValueError('%s is an absolute path' % path)
         filters = [(0, f) for f in self._global_filters]
-        if os.path.sep != b'/':
-            path = path.replace(os.path.sep, b'/')
-        parts = path.split(b'/')
+        if os.path.sep != '/':
+            path = path.replace(os.path.sep, '/')
+        parts = path.split('/')
         for i in range(len(parts)+1):
-            dirname = b'/'.join(parts[:i])
+            dirname = '/'.join(parts[:i])
             for s, f in filters:
-                relpath = b'/'.join(parts[s:i])
+                relpath = '/'.join(parts[s:i])
                 if i < len(parts):
                     # Paths leading up to the final part are all directories,
                     # so need a trailing slash.
-                    relpath += b'/'
+                    relpath += '/'
                 matches = list(f.find_matching(relpath))
                 if matches:
                     return iter(matches)
@@ -346,7 +345,7 @@ class IgnoreFilterManager(object):
           None if the file is not mentioned, True if it is included,
           False if it is explicitly excluded.
         """
-        matches = list(self.find_matching(os.fsencode(path)))
+        matches = list(self.find_matching(path))
         if matches:
             return matches[-1].is_exclude
         return None
@@ -362,11 +361,11 @@ class IgnoreFilterManager(object):
         """
         global_filters = []
         for p in [
-                os.path.join(repo.controldir(), b'info', b'exclude'),
+                os.path.join(repo.controldir(), 'info', 'exclude'),
                 default_user_ignore_filter_path(repo.get_config_stack())]:
             try:
                 global_filters.append(
-                    IgnoreFilter.from_path(os.fsencode(os.path.expanduser(p))))
+                    IgnoreFilter.from_path(os.path.expanduser(p)))
             except IOError:
                 pass
         config = repo.get_config_stack()

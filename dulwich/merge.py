@@ -73,6 +73,7 @@ def _merge_entry(new_path, object_store, this_entry,
         object_store[other_entry.sha].as_raw_string(),
         object_store[base_entry.sha].as_raw_string())
     merged_text_blob = Blob.from_string(merged_text)
+    print(merged_text.decode('utf-8'))
     object_store.add_object(merged_text_blob)
     # TODO(jelmer): Report conflicts, if any?
     if this_entry.mode in (base_entry.mode, other_entry.mode):

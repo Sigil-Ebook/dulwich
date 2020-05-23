@@ -1745,7 +1745,7 @@ def diff(repo, committish1=None,
             # build up file name list of non-ignored files in working
             # directory as tree paths (bytes)
             names = []
-            wkdir = r.path.encode('utf-8')
+            wkdir = os.fsencode(r.path)
             ignore_manager = IgnoreFilterManager.from_repo(r)
             for apath, isdir in _walk_working_dir_paths(wkdir, wkdir):
                 file_path = os.path.relpath(apath, wkdir)
@@ -1753,7 +1753,8 @@ def diff(repo, committish1=None,
                     tree_path = file_path.replace(os_sep_bytes, b'/')
                 else:
                     tree_path = file_path
-                ignored = ignore_manager.is_ignored(tree_path.decode('utf-8'))
+                # ignore manger only works with unicode paths
+                ignored = ignore_manager.is_ignored(os.fsdecode(tree_path))
                 if not isdir and not ignored:
                     names.append(tree_path)
 
