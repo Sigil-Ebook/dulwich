@@ -41,6 +41,7 @@ class ShellHookTests(TestCase):
         super(ShellHookTests, self).setUp()
         if os.name != 'posix':
             self.skipTest('shell hook tests requires POSIX shell')
+        self.assertTrue(os.path.exists('/bin/sh'))
 
     def test_hook_pre_commit(self):
         repo_dir = os.path.join(tempfile.mkdtemp())
@@ -55,7 +56,13 @@ exit 1
 exit 0
 """
         pre_commit_cwd = """#!/bin/sh
-if [ "$(pwd)" = '""" + repo_dir + "' ]; then exit 0; else exit 1; fi\n"
+if [ "$(pwd)" != '""" + repo_dir + """' ]; then
+    echo "Expected path '""" + repo_dir + """', got '$(pwd)'"
+    exit 1
+fi
+
+exit 0
+"""
 
         pre_commit = os.path.join(repo_dir, 'hooks', 'pre-commit')
         hook = PreCommitShellHook(repo_dir)
