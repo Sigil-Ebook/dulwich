@@ -520,15 +520,19 @@ class BuildIndexTests(TestCase):
                 [(o, None) for o in [file, tree]])
 
             try:
-                os.path.exists(latin1_path)
+                build_index_from_tree(
+                    repo.path, repo.index_path(),
+                    repo.object_store, tree.id)
+            except OSError as e:
+                if e.errno == 92 and sys.platform == 'darwin':
+                    # Our filename isn't supported by the platform :(
+                    self.skipTest('can not write filename %r' % e.filename)
+                else:
+                    raise
             except UnicodeDecodeError:
                 # This happens e.g. with python3.6 on Windows.
                 # It implicitly decodes using utf8, which doesn't work.
                 self.skipTest('can not implicitly convert as utf8')
-
-            build_index_from_tree(
-                repo.path, repo.index_path(),
-                repo.object_store, tree.id)
 
             # Verify index entries
             index = repo.open_index()

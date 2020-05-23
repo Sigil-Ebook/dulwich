@@ -258,8 +258,8 @@ class ShaFile(object):
 
     __slots__ = ('_chunked_text', '_sha', '_needs_serialization')
 
-    type_name: bytes
-    type_num: int
+    type_name = None  # type: bytes
+    type_num = None  # type: int
 
     @staticmethod
     def _parse_legacy_object_header(magic, f):
@@ -1425,7 +1425,7 @@ OBJECT_CLASSES = (
     Tag,
     )
 
-_TYPE_MAP: Dict[Union[bytes, int], Type[ShaFile]] = {}
+_TYPE_MAP = {}  # type: Dict[Union[bytes, int], Type[ShaFile]]
 
 for cls in OBJECT_CLASSES:
     _TYPE_MAP[cls.type_name] = cls
