@@ -31,8 +31,6 @@ from urllib.parse import (
     urlparse,
     )
 
-import urllib3
-
 import dulwich
 from dulwich import (
     client,
@@ -881,14 +879,6 @@ class LocalGitClientTests(TestCase):
 
 class HttpGitClientTests(TestCase):
 
-    @staticmethod
-    def b64encode(s):
-        """Python 2/3 compatible Base64 encoder. Returns string."""
-        try:
-            return base64.b64encode(s)
-        except TypeError:
-            return base64.b64encode(s.encode('latin1')).decode('ascii')
-
     def test_get_url(self):
         base_url = 'https://github.com/jelmer/dulwich'
         path = '/jelmer/dulwich'
@@ -922,8 +912,8 @@ class HttpGitClientTests(TestCase):
 
         basic_auth = c.pool_manager.headers['authorization']
         auth_string = '%s:%s' % ('user', 'passwd')
-        b64_credentials = self.b64encode(auth_string)
-        expected_basic_auth = 'Basic %s' % b64_credentials
+        b64_credentials = base64.b64encode(auth_string.encode('latin1'))
+        expected_basic_auth = 'Basic %s' % b64_credentials.decode('latin1')
         self.assertEqual(basic_auth, expected_basic_auth)
 
     def test_init_no_username_passwd(self):
@@ -952,8 +942,8 @@ class HttpGitClientTests(TestCase):
 
         basic_auth = c.pool_manager.headers['authorization']
         auth_string = '%s:%s' % (original_username, original_password)
-        b64_credentials = self.b64encode(auth_string)
-        expected_basic_auth = 'Basic %s' % str(b64_credentials)
+        b64_credentials = base64.b64encode(auth_string.encode('latin1'))
+        expected_basic_auth = 'Basic %s' % b64_credentials.decode('latin1')
         self.assertEqual(basic_auth, expected_basic_auth)
 
     def test_url_redirect_location(self):
@@ -1064,11 +1054,14 @@ class DefaultUrllib3ManagerTest(TestCase):
                          'CERT_REQUIRED')
 
     def test_config_no_proxy(self):
+        import urllib3
         manager = default_urllib3_manager(config=ConfigDict())
         self.assertNotIsInstance(manager, urllib3.ProxyManager)
         self.assertIsInstance(manager, urllib3.PoolManager)
 
     def test_config_no_proxy_custom_cls(self):
+        import urllib3
+
         class CustomPoolManager(urllib3.PoolManager):
             pass
 
@@ -1091,6 +1084,7 @@ class DefaultUrllib3ManagerTest(TestCase):
                          'CERT_NONE')
 
     def test_config_proxy(self):
+        import urllib3
         config = ConfigDict()
         config.set(b'http', b'proxy', b'http://localhost:3128/')
         manager = default_urllib3_manager(config=config)
@@ -1102,6 +1096,8 @@ class DefaultUrllib3ManagerTest(TestCase):
         self.assertEqual(manager.proxy.port, 3128)
 
     def test_config_proxy_custom_cls(self):
+        import urllib3
+
         class CustomProxyManager(urllib3.ProxyManager):
             pass
 

@@ -442,25 +442,6 @@ class RepositoryRootTests(TestCase):
         r = self.open_repo('ooo_merge.git')
         self.assertIsInstance(r.get_config_stack(), Config)
 
-    @skipIf(not getattr(os, 'symlink', None), 'Requires symlink support')
-    def test_submodule(self):
-        temp_dir = self.mkdtemp()
-        self.addCleanup(shutil.rmtree, temp_dir)
-        repo_dir = os.path.join(os.path.dirname(__file__), 'data', 'repos')
-        shutil.copytree(os.path.join(repo_dir, 'a.git'),
-                        os.path.join(temp_dir, 'a.git'), symlinks=True)
-        try:
-            rel = os.path.relpath(
-                os.path.join(repo_dir, 'submodule'), temp_dir)
-        except ValueError:
-            # On windows, these two paths could be on different drives,
-            # making it impossible to determine a relative path.
-            rel = os.path.join(repo_dir, 'submodule')
-        os.symlink(os.path.join(rel, 'dotgit'), os.path.join(temp_dir, '.git'))
-        with Repo(temp_dir) as r:
-            self.assertEqual(r.head(),
-                             b'a90fa2d900a17e99b433217e988c4eb4a2e9a097')
-
     def test_common_revisions(self):
         """
         This test demonstrates that ``find_common_revisions()`` actually
@@ -650,7 +631,7 @@ exit 1
             author_timestamp=12345, author_timezone=0)
         expected_warning = UserWarning(
             'post-commit hook failed: Hook post-commit exited with '
-            'non-zero status',)
+            'non-zero status 1',)
         for w in warnings_list:
             if (type(w) == type(expected_warning) and
                     w.args == expected_warning.args):
