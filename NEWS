@@ -1,11 +1,21 @@
-0.20.0	UNRELEASED
+0.20.2	2020-06-01
+
+ * Brown bag release to fix uploads of Windows wheels.
+
+0.20.1	2020-06-01
+
+ * Publish binary wheels for: Windows, Linux, Mac OS X.
+   (Jelmer Vernooĳ, #711, #710, #629)
+
+0.20.0	2020-06-01
 
  * Drop support for Python 2. (Jelmer Vernooĳ)
 
  * Only return files from the loose store that look like git objects.
    (Nicolas Dandrimont)
 
-0.19.17	UNRELEASED
+ * Ignore agent= capability if sent by client.
+   (Jelmer Vernooĳ)
 
  * Don't break when encountering block devices.
    (Jelmer Vernooĳ)
