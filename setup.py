@@ -15,7 +15,7 @@ import io
 import os
 import sys
 
-dulwich_version_string = '0.20.2'
+dulwich_version_string = '0.20.3'
 
 
 class DulwichDistribution(Distribution):
@@ -79,6 +79,7 @@ if has_setuptools:
         "console_scripts": [
             "dulwich=dulwich.cli:main",
         ]}
+    setup_kwargs['python_requires'] = '>=3.5'
 else:
     scripts.append('bin/dulwich')
 
