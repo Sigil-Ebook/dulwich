@@ -33,11 +33,11 @@ Currently implemented:
  * describe
  * diff-tree
  * fetch
+ * graph
  * init
  * ls-files
  * ls-remote
  * ls-tree
- * merge-base
  * pull
  * push
  * rm
@@ -151,7 +151,7 @@ from dulwich.server import (
     update_server_info as server_update_server_info,
     )
 
-from dulwich.merge_base import (
+from dulwich.graph import (
     find_merge_base,
     find_octopus_base
 )

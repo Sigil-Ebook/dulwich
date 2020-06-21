@@ -8,7 +8,7 @@
 
 from dulwich.tests import TestCase
 
-from dulwich.merge_base import _find_lcas
+from dulwich.graph import _find_lcas
 
 
 class FindMergeBaseTests(TestCase):

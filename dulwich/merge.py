@@ -22,7 +22,7 @@
 
 from collections import namedtuple
 
-from .merge_base import find_merge_base
+from .graph import find_merge_base
 
 from .diff_tree import (
     TreeEntry,
