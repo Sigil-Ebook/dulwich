@@ -2,13 +2,30 @@
 # test_index.py -- Tests for merge
 # encoding: utf-8
 # Copyright (c) 2020 Kevin B. Hendricks, Stratford Ontario Canada
-# Available under the MIT License
+#
+# Dulwich is dual-licensed under the Apache License, Version 2.0 and the GNU
+# General Public License as public by the Free Software Foundation; version 2.0
+# or (at your option) any later version. You can redistribute it and/or
+# modify it under the terms of either of these two licenses.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# You should have received a copy of the licenses; if not, see
+# <http://www.gnu.org/licenses/> for a copy of the GNU General Public License
+# and <http://www.apache.org/licenses/LICENSE-2.0> for a copy of the Apache
+# License, Version 2.0.
 
-"""Tests for merge_base."""
+"""Tests for dulwich.graph."""
 
 from dulwich.tests import TestCase
+from dulwich.tests.utils import make_commit
+from dulwich.object_store import MemoryObjectStore
 
-from dulwich.graph import _find_lcas
+from dulwich.graph import _find_lcas, can_fast_forward
 
 
 class FindMergeBaseTests(TestCase):
@@ -139,3 +156,29 @@ class FindMergeBaseTests(TestCase):
                 next_lcas.extend(res)
             lcas = next_lcas[:]
         self.assertEqual(set(lcas), set(['2']))
+
+
+class CanFastForwardTests(TestCase):
+
+    def test_ff(self):
+        store = MemoryObjectStore()
+        base = make_commit()
+        c1 = make_commit(parents=[base.id])
+        c2 = make_commit(parents=[c1.id])
+        store.add_objects([(base, None), (c1, None), (c2, None)])
+        self.assertTrue(can_fast_forward(store, c1.id, c1.id))
+        self.assertTrue(can_fast_forward(store, base.id, c1.id))
+        self.assertTrue(can_fast_forward(store, c1.id, c2.id))
+        self.assertFalse(can_fast_forward(store, c2.id, c1.id))
+
+    def test_diverged(self):
+        store = MemoryObjectStore()
+        base = make_commit()
+        c1 = make_commit(parents=[base.id])
+        c2a = make_commit(parents=[c1.id], message=b'2a')
+        c2b = make_commit(parents=[c1.id], message=b'2b')
+        store.add_objects([(base, None), (c1, None), (c2a, None), (c2b, None)])
+        self.assertTrue(can_fast_forward(store, c1.id, c2a.id))
+        self.assertTrue(can_fast_forward(store, c1.id, c2b.id))
+        self.assertFalse(can_fast_forward(store, c2a.id, c2b.id))
+        self.assertFalse(can_fast_forward(store, c2b.id, c2a.id))

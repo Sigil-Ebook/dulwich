@@ -1,12 +1,27 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
+# Copyright (c) 2020 Kevin B. Hendricks, Stratford Ontario Canada
+#
+# Dulwich is dual-licensed under the Apache License, Version 2.0 and the GNU
+# General Public License as public by the Free Software Foundation; version 2.0
+# or (at your option) any later version. You can redistribute it and/or
+# modify it under the terms of either of these two licenses.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# You should have received a copy of the licenses; if not, see
+# <http://www.gnu.org/licenses/> for a copy of the GNU General Public License
+# and <http://www.apache.org/licenses/LICENSE-2.0> for a copy of the Apache
+# License, Version 2.0.
+
 """
 Implementation of merge-base following the approach of git
 """
-# Copyright (c) 2020 Kevin B. Hendricks, Stratford Ontario Canada
-#
-# Available under the MIT License
 
 from collections import deque
 
@@ -116,3 +131,22 @@ def find_octopus_base(object_store, commit_ids):
             next_lcas.extend(res)
         lcas = next_lcas[:]
     return lcas
+
+
+def can_fast_forward(object_store, c1, c2):
+    """Is it possible to fast-forward from c1 to c2?
+
+    Args:
+      object_store: Store to retrieve objects from
+      c1: Commit id for first commit
+      c2: Commit id for second commit
+    """
+    if c1 == c2:
+        return True
+
+    def lookup_parents(commit_id):
+        return object_store[commit_id].parents
+
+    # Algorithm: Find the common ancestor
+    lcas = _find_lcas(lookup_parents, c1, [c2])
+    return lcas == [c1]
